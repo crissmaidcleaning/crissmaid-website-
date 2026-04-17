@@ -73,14 +73,14 @@ const DEMO_BOOKINGS = [
 // ── Styles (inline) ────────────────────────────────────────────────────────────
 const css = {
   app: { fontFamily: "'Georgia', serif", background: COLORS.cream, minHeight: "100vh", color: COLORS.navy },
-  header: { background: COLORS.navyDark, padding: "10px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.2)" },
+  header: { background: COLORS.white, padding: 0, display: "flex", flexDirection: "column", alignItems: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.15)", overflow: "hidden" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
   logoIcon: { width: 44, height: 44, background: COLORS.blue, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 },
   logoText: { color: COLORS.white },
   logoName: { fontFamily: "'Georgia', serif", fontSize: 20, fontWeight: "bold", letterSpacing: 1, margin: 0, lineHeight: 1.1 },
   logoSub: { fontSize: 11, color: COLORS.blueLight, letterSpacing: 2, textTransform: "uppercase", margin: 0 },
-  nav: { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", width: "100%" },
-  navBtn: (active) => ({ background: active ? COLORS.blue : "transparent", color: active ? COLORS.white : COLORS.white, border: `1px solid ${active ? COLORS.blue : "rgba(255,255,255,0.4)"}`, borderRadius: 6, padding: "7px 14px", cursor: "pointer", fontSize: 13, letterSpacing: 0.3, transition: "all 0.2s", whiteSpace: "nowrap" }),
+  nav: { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", width: "100%", background: COLORS.navyDark, padding: "10px 16px" },
+  navBtn: (active) => ({ background: active ? COLORS.blue : "transparent", color: COLORS.white, border: `1px solid ${active ? COLORS.blue : "rgba(255,255,255,0.4)"}`, borderRadius: 6, padding: "7px 14px", cursor: "pointer", fontSize: 13, letterSpacing: 0.3, transition: "all 0.2s", whiteSpace: "nowrap" }),
   hero: { background: `linear-gradient(135deg, ${COLORS.navyDark} 0%, #1a5bb5 60%, #2468C0 100%)`, padding: "48px 24px", textAlign: "center" },
   heroTitle: { fontFamily: "'Georgia', serif", fontSize: 42, color: COLORS.white, margin: "0 0 12px", letterSpacing: 2 },
   heroSub: { color: "rgba(255,255,255,0.85)", fontSize: 16, marginBottom: 32, letterSpacing: 1 },
@@ -847,9 +847,9 @@ export default function App() {
 
   return (
     <div style={css.app}>
-      {/* Header — nav only, no logo */}
-      <header style={css.header}>
-        <nav style={css.nav}>
+      {/* Header — nav only */}
+      <header style={{ ...css.header, background: COLORS.navyDark, padding: "10px 16px" }}>
+        <nav style={{ ...css.nav, background: "transparent", padding: 0 }}>
           {[["home","Home"],["book","Book Now"],["pricing","Pricing"],["calendar","Calendar"],["employee","Employee"]].map(([k,l]) => (
             <button key={k} onClick={() => setPage(k)} style={css.navBtn(page === k)}>{l}</button>
           ))}
@@ -859,10 +859,12 @@ export default function App() {
       {/* Home */}
       {page === "home" && (
         <>
-          <div style={css.hero}>
-            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 160, objectFit: "contain", marginBottom: 12, filter: "drop-shadow(0 4px 20px rgba(0,0,0,0.25))" }} />
-            <p style={css.heroSub}>Professional · Reliable · Spotless</p>
-            <button onClick={() => setPage("book")} style={css.heroBtn}>Book a Cleaning →</button>
+          <div style={{ width: "100%", background: COLORS.white, position: "relative", textAlign: "center" }}>
+            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ width: "100%", display: "block", objectFit: "contain" }} />
+            <div style={{ background: COLORS.white, paddingBottom: 28, paddingTop: 0 }}>
+              <p style={{ fontFamily: "'Georgia', serif", fontSize: 17, color: COLORS.navy, fontWeight: "bold", letterSpacing: 2, margin: "0 0 20px", textTransform: "uppercase" }}>Professional · Reliable · Spotless</p>
+              <button onClick={() => setPage("book")} style={css.heroBtn}>Book a Cleaning →</button>
+            </div>
           </div>
 
           <div style={css.section}>
@@ -873,9 +875,9 @@ export default function App() {
                 { icon: "📅", title: "Easy Scheduling", desc: "Book online in minutes. See real-time availability on our calendar." },
                 { icon: "⭐", title: "Add-On Services", desc: "Fridge, oven cleaning & more. Silver cleaning available by quote." },
               ].map(f => (
-                <div key={f.title} style={{ ...css.card, textAlign: "center", marginBottom: 0 }}>
+                <div key={f.title} style={{ ...css.card, textAlign: "center", marginBottom: 0, background: COLORS.white }}>
                   <div style={{ fontSize: 36, marginBottom: 12 }}>{f.icon}</div>
-                  <div style={{ fontWeight: "bold", fontSize: 16, marginBottom: 8, fontFamily: "'Georgia', serif" }}>{f.title}</div>
+                  <div style={{ fontWeight: "bold", fontSize: 16, marginBottom: 8, fontFamily: "'Georgia', serif", color: COLORS.navy }}>{f.title}</div>
                   <div style={{ color: COLORS.gray, fontSize: 14, lineHeight: 1.5 }}>{f.desc}</div>
                 </div>
               ))}
