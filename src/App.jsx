@@ -2,13 +2,13 @@ import { useState, useEffect } from "react";
 
 // ── Palette & helpers ──────────────────────────────────────────────────────────
 const COLORS = {
-  navy: "#1A3A6B",
-  navyDark: "#1C4B9B",   // lighter blue matching logo
-  blue: "#2468C0",
-  blueLight: "#6aaee8",
-  green: "#4BAD2E",
+  navy: "#1A3A6B",       // deep blue from logo
+  navyDark: "#0F2347",   // darker shade for header
+  blue: "#2468C0",       // mid blue
+  blueLight: "#4A90D9",  // lighter blue accent
+  green: "#4BAD2E",      // logo green (Maid lettering)
   greenLight: "#6DC94E",
-  cream: "#F4F8FF",
+  cream: "#F4F8FF",      // very light blue-white bg
   white: "#FFFFFF",
   gray: "#6B7280",
   lightGray: "#EDF2FB",
@@ -73,17 +73,17 @@ const DEMO_BOOKINGS = [
 // ── Styles (inline) ────────────────────────────────────────────────────────────
 const css = {
   app: { fontFamily: "'Georgia', serif", background: COLORS.cream, minHeight: "100vh", color: COLORS.navy },
-  header: { background: COLORS.white, padding: 0, display: "flex", flexDirection: "column", alignItems: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.15)", overflow: "hidden" },
+  header: { background: COLORS.navyDark, padding: "18px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 12px rgba(0,0,0,0.25)" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
   logoIcon: { width: 44, height: 44, background: COLORS.blue, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 },
   logoText: { color: COLORS.white },
   logoName: { fontFamily: "'Georgia', serif", fontSize: 20, fontWeight: "bold", letterSpacing: 1, margin: 0, lineHeight: 1.1 },
   logoSub: { fontSize: 11, color: COLORS.blueLight, letterSpacing: 2, textTransform: "uppercase", margin: 0 },
-  nav: { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", width: "100%", background: COLORS.navyDark, padding: "10px 16px" },
-  navBtn: (active) => ({ background: active ? COLORS.blue : "transparent", color: COLORS.white, border: `1px solid ${active ? COLORS.blue : "rgba(255,255,255,0.4)"}`, borderRadius: 6, padding: "7px 14px", cursor: "pointer", fontSize: 13, letterSpacing: 0.3, transition: "all 0.2s", whiteSpace: "nowrap" }),
-  hero: { background: `linear-gradient(135deg, ${COLORS.navyDark} 0%, #1a5bb5 60%, #2468C0 100%)`, padding: "48px 24px", textAlign: "center" },
+  nav: { display: "flex", gap: 8 },
+  navBtn: (active) => ({ background: active ? COLORS.blue : "transparent", color: active ? COLORS.white : COLORS.blueLight, border: `1px solid ${active ? COLORS.blue : COLORS.blueLight}`, borderRadius: 6, padding: "8px 18px", cursor: "pointer", fontSize: 13, letterSpacing: 0.5, transition: "all 0.2s" }),
+  hero: { background: `linear-gradient(135deg, ${COLORS.navyDark} 0%, ${COLORS.navy} 60%, #1f4d8a 100%)`, padding: "60px 32px", textAlign: "center" },
   heroTitle: { fontFamily: "'Georgia', serif", fontSize: 42, color: COLORS.white, margin: "0 0 12px", letterSpacing: 2 },
-  heroSub: { color: "rgba(255,255,255,0.85)", fontSize: 16, marginBottom: 32, letterSpacing: 1 },
+  heroSub: { color: COLORS.blueLight, fontSize: 16, marginBottom: 32, letterSpacing: 1 },
   heroBtn: { background: COLORS.green, color: COLORS.white, border: "none", borderRadius: 8, padding: "16px 40px", fontSize: 16, cursor: "pointer", fontFamily: "'Georgia', serif", letterSpacing: 1, boxShadow: "0 4px 20px rgba(75,173,46,0.4)", transition: "transform 0.2s" },
   section: { maxWidth: 960, margin: "40px auto", padding: "0 24px" },
   card: { background: COLORS.white, borderRadius: 12, padding: 28, boxShadow: "0 2px 16px rgba(26,58,107,0.08)", marginBottom: 24 },
@@ -822,9 +822,11 @@ export default function App() {
   if (page === "employee" && employee) {
     return (
       <div style={css.app}>
-        <header style={{ ...css.header, flexDirection: "row", justifyContent: "space-between", padding: "12px 20px" }}>
-          <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 40, objectFit: "contain" }} />
-          <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13 }}>👋 {employee.name}</div>
+        <header style={css.header}>
+          <div style={css.logo}>
+            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 48, objectFit: "contain" }} />
+          </div>
+          <div style={{ color: COLORS.blueLight, fontSize: 14 }}>Employee Portal · {employee.name}</div>
         </header>
         <EmployeeSchedule bookings={bookings} employee={employee} onLogout={handleLogout} />
         {toast && <div style={css.toast}>{toast}</div>}
@@ -835,9 +837,11 @@ export default function App() {
   if (page === "employee" && !employee) {
     return (
       <div style={css.app}>
-        <header style={{ ...css.header, flexDirection: "row", justifyContent: "space-between", padding: "12px 20px" }}>
-          <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 40, objectFit: "contain" }} />
-          <button onClick={() => setPage("home")} style={{ ...css.navBtn(false), fontSize: 12 }}>← Back</button>
+        <header style={css.header}>
+          <div style={css.logo}>
+            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 48, objectFit: "contain" }} />
+          </div>
+          <button onClick={() => setPage("home")} style={{ ...css.navBtn(false) }}>← Back to Site</button>
         </header>
         <EmployeeLogin onLogin={handleLogin} />
         {toast && <div style={css.toast}>{toast}</div>}
@@ -847,9 +851,12 @@ export default function App() {
 
   return (
     <div style={css.app}>
-      {/* Header — nav only */}
-      <header style={{ ...css.header, background: COLORS.navyDark, padding: "10px 16px" }}>
-        <nav style={{ ...css.nav, background: "transparent", padding: 0 }}>
+      {/* Header */}
+      <header style={css.header}>
+        <div style={css.logo}>
+          <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 52, objectFit: "contain" }} />
+        </div>
+        <nav style={css.nav}>
           {[["home","Home"],["book","Book Now"],["pricing","Pricing"],["calendar","Calendar"],["employee","Employee"]].map(([k,l]) => (
             <button key={k} onClick={() => setPage(k)} style={css.navBtn(page === k)}>{l}</button>
           ))}
@@ -859,12 +866,10 @@ export default function App() {
       {/* Home */}
       {page === "home" && (
         <>
-          <div style={{ width: "100%", background: COLORS.white, position: "relative", textAlign: "center" }}>
-            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ width: "100%", display: "block", objectFit: "contain" }} />
-            <div style={{ background: COLORS.white, paddingBottom: 28, paddingTop: 0 }}>
-              <p style={{ fontFamily: "'Georgia', serif", fontSize: 17, color: COLORS.navy, fontWeight: "bold", letterSpacing: 2, margin: "0 0 20px", textTransform: "uppercase" }}>Professional · Reliable · Spotless</p>
-              <button onClick={() => setPage("book")} style={css.heroBtn}>Book a Cleaning →</button>
-            </div>
+          <div style={css.hero}>
+            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 140, objectFit: "contain", marginBottom: 16, filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.3))" }} />
+            <p style={css.heroSub}>Professional · Reliable · Spotless</p>
+            <button onClick={() => setPage("book")} style={css.heroBtn}>Book a Cleaning →</button>
           </div>
 
           <div style={css.section}>
@@ -875,9 +880,9 @@ export default function App() {
                 { icon: "📅", title: "Easy Scheduling", desc: "Book online in minutes. See real-time availability on our calendar." },
                 { icon: "⭐", title: "Add-On Services", desc: "Fridge, oven cleaning & more. Silver cleaning available by quote." },
               ].map(f => (
-                <div key={f.title} style={{ ...css.card, textAlign: "center", marginBottom: 0, background: COLORS.white }}>
+                <div key={f.title} style={{ ...css.card, textAlign: "center", marginBottom: 0 }}>
                   <div style={{ fontSize: 36, marginBottom: 12 }}>{f.icon}</div>
-                  <div style={{ fontWeight: "bold", fontSize: 16, marginBottom: 8, fontFamily: "'Georgia', serif", color: COLORS.navy }}>{f.title}</div>
+                  <div style={{ fontWeight: "bold", fontSize: 16, marginBottom: 8, fontFamily: "'Georgia', serif" }}>{f.title}</div>
                   <div style={{ color: COLORS.gray, fontSize: 14, lineHeight: 1.5 }}>{f.desc}</div>
                 </div>
               ))}
