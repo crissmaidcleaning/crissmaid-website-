@@ -2,13 +2,13 @@ import { useState, useEffect } from "react";
 
 // ── Palette & helpers ──────────────────────────────────────────────────────────
 const COLORS = {
-  navy: "#1A3A6B",       // deep blue from logo
-  navyDark: "#0F2347",   // darker shade for header
-  blue: "#2468C0",       // mid blue
-  blueLight: "#4A90D9",  // lighter blue accent
-  green: "#4BAD2E",      // logo green (Maid lettering)
+  navy: "#1A3A6B",
+  navyDark: "#1C4B9B",   // lighter blue matching logo
+  blue: "#2468C0",
+  blueLight: "#6aaee8",
+  green: "#4BAD2E",
   greenLight: "#6DC94E",
-  cream: "#F4F8FF",      // very light blue-white bg
+  cream: "#F4F8FF",
   white: "#FFFFFF",
   gray: "#6B7280",
   lightGray: "#EDF2FB",
@@ -73,17 +73,17 @@ const DEMO_BOOKINGS = [
 // ── Styles (inline) ────────────────────────────────────────────────────────────
 const css = {
   app: { fontFamily: "'Georgia', serif", background: COLORS.cream, minHeight: "100vh", color: COLORS.navy },
-  header: { background: COLORS.navyDark, padding: "18px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", boxShadow: "0 2px 12px rgba(0,0,0,0.25)" },
+  header: { background: COLORS.navyDark, padding: "10px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 10, boxShadow: "0 2px 12px rgba(0,0,0,0.2)" },
   logo: { display: "flex", alignItems: "center", gap: 12 },
   logoIcon: { width: 44, height: 44, background: COLORS.blue, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 },
   logoText: { color: COLORS.white },
   logoName: { fontFamily: "'Georgia', serif", fontSize: 20, fontWeight: "bold", letterSpacing: 1, margin: 0, lineHeight: 1.1 },
   logoSub: { fontSize: 11, color: COLORS.blueLight, letterSpacing: 2, textTransform: "uppercase", margin: 0 },
-  nav: { display: "flex", gap: 8 },
-  navBtn: (active) => ({ background: active ? COLORS.blue : "transparent", color: active ? COLORS.white : COLORS.blueLight, border: `1px solid ${active ? COLORS.blue : COLORS.blueLight}`, borderRadius: 6, padding: "8px 18px", cursor: "pointer", fontSize: 13, letterSpacing: 0.5, transition: "all 0.2s" }),
-  hero: { background: `linear-gradient(135deg, ${COLORS.navyDark} 0%, ${COLORS.navy} 60%, #1f4d8a 100%)`, padding: "60px 32px", textAlign: "center" },
+  nav: { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", width: "100%" },
+  navBtn: (active) => ({ background: active ? COLORS.blue : "transparent", color: active ? COLORS.white : COLORS.white, border: `1px solid ${active ? COLORS.blue : "rgba(255,255,255,0.4)"}`, borderRadius: 6, padding: "7px 14px", cursor: "pointer", fontSize: 13, letterSpacing: 0.3, transition: "all 0.2s", whiteSpace: "nowrap" }),
+  hero: { background: `linear-gradient(135deg, ${COLORS.navyDark} 0%, #1a5bb5 60%, #2468C0 100%)`, padding: "48px 24px", textAlign: "center" },
   heroTitle: { fontFamily: "'Georgia', serif", fontSize: 42, color: COLORS.white, margin: "0 0 12px", letterSpacing: 2 },
-  heroSub: { color: COLORS.blueLight, fontSize: 16, marginBottom: 32, letterSpacing: 1 },
+  heroSub: { color: "rgba(255,255,255,0.85)", fontSize: 16, marginBottom: 32, letterSpacing: 1 },
   heroBtn: { background: COLORS.green, color: COLORS.white, border: "none", borderRadius: 8, padding: "16px 40px", fontSize: 16, cursor: "pointer", fontFamily: "'Georgia', serif", letterSpacing: 1, boxShadow: "0 4px 20px rgba(75,173,46,0.4)", transition: "transform 0.2s" },
   section: { maxWidth: 960, margin: "40px auto", padding: "0 24px" },
   card: { background: COLORS.white, borderRadius: 12, padding: 28, boxShadow: "0 2px 16px rgba(26,58,107,0.08)", marginBottom: 24 },
@@ -822,11 +822,9 @@ export default function App() {
   if (page === "employee" && employee) {
     return (
       <div style={css.app}>
-        <header style={css.header}>
-          <div style={css.logo}>
-            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 48, objectFit: "contain" }} />
-          </div>
-          <div style={{ color: COLORS.blueLight, fontSize: 14 }}>Employee Portal · {employee.name}</div>
+        <header style={{ ...css.header, flexDirection: "row", justifyContent: "space-between", padding: "12px 20px" }}>
+          <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 40, objectFit: "contain" }} />
+          <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13 }}>👋 {employee.name}</div>
         </header>
         <EmployeeSchedule bookings={bookings} employee={employee} onLogout={handleLogout} />
         {toast && <div style={css.toast}>{toast}</div>}
@@ -837,11 +835,9 @@ export default function App() {
   if (page === "employee" && !employee) {
     return (
       <div style={css.app}>
-        <header style={css.header}>
-          <div style={css.logo}>
-            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 48, objectFit: "contain" }} />
-          </div>
-          <button onClick={() => setPage("home")} style={{ ...css.navBtn(false) }}>← Back to Site</button>
+        <header style={{ ...css.header, flexDirection: "row", justifyContent: "space-between", padding: "12px 20px" }}>
+          <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 40, objectFit: "contain" }} />
+          <button onClick={() => setPage("home")} style={{ ...css.navBtn(false), fontSize: 12 }}>← Back</button>
         </header>
         <EmployeeLogin onLogin={handleLogin} />
         {toast && <div style={css.toast}>{toast}</div>}
@@ -851,11 +847,8 @@ export default function App() {
 
   return (
     <div style={css.app}>
-      {/* Header */}
+      {/* Header — nav only, no logo */}
       <header style={css.header}>
-        <div style={css.logo}>
-          <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 52, objectFit: "contain" }} />
-        </div>
         <nav style={css.nav}>
           {[["home","Home"],["book","Book Now"],["pricing","Pricing"],["calendar","Calendar"],["employee","Employee"]].map(([k,l]) => (
             <button key={k} onClick={() => setPage(k)} style={css.navBtn(page === k)}>{l}</button>
@@ -867,7 +860,7 @@ export default function App() {
       {page === "home" && (
         <>
           <div style={css.hero}>
-            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 140, objectFit: "contain", marginBottom: 16, filter: "drop-shadow(0 4px 16px rgba(0,0,0,0.3))" }} />
+            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 160, objectFit: "contain", marginBottom: 12, filter: "drop-shadow(0 4px 20px rgba(0,0,0,0.25))" }} />
             <p style={css.heroSub}>Professional · Reliable · Spotless</p>
             <button onClick={() => setPage("book")} style={css.heroBtn}>Book a Cleaning →</button>
           </div>
