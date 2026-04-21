@@ -16,11 +16,23 @@ const COLORS = {
   gold: "#F4D35E",
 };
 
-const EMPLOYEES = [
+// Admin password — change this to whatever you want
+const ADMIN_PASSWORD = "CrissMaid2024!";
+
+// Default employees (only used if none saved yet)
+const DEFAULT_EMPLOYEES = [
   { id: 1, name: "Maria G.", pin: "123456", color: "#2468C0" },
-  { id: 2, name: "Sofia R.", pin: "654321", color: "#4BAD2E" },
-  { id: 3, name: "Lucia M.", pin: "112233", color: "#4A90D9" },
 ];
+
+function loadEmployees() {
+  try {
+    const saved = localStorage.getItem("cmc_employees");
+    return saved ? JSON.parse(saved) : DEFAULT_EMPLOYEES;
+  } catch { return DEFAULT_EMPLOYEES; }
+}
+function saveEmployees(list) {
+  localStorage.setItem("cmc_employees", JSON.stringify(list));
+}
 
 const EXTRAS = [
   { id: "fridge", label: "Fridge (inside & out)", price: 45 },
@@ -380,11 +392,123 @@ function EmployeeSchedule({ bookings, employee, onLogout }) {
   );
 }
 
+// ── Admin Dashboard ────────────────────────────────────────────────────────────
+function AdminDashboard({ onLogout }) {
+  const [employees, setEmployees] = useState(loadEmployees());
+  const [newName, setNewName] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const COLORS_LIST = ["#2468C0","#4BAD2E","#4A90D9","#E67E22","#9B59B6","#E74C3C","#1ABC9C","#F39C12"];
+
+  function addEmployee() {
+    if (!newName.trim()) { setError("Please enter a name."); return; }
+    if (newPin.length !== 6 || !/^\d+$/.test(newPin)) { setError("PIN must be exactly 6 digits."); return; }
+    if (employees.find(e => e.pin === newPin)) { setError("That PIN is already in use. Choose a different one."); return; }
+    const updated = [...employees, {
+      id: Date.now(),
+      name: newName.trim(),
+      pin: newPin,
+      color: COLORS_LIST[employees.length % COLORS_LIST.length],
+    }];
+    setEmployees(updated);
+    saveEmployees(updated);
+    setNewName(""); setNewPin("");
+    setError("");
+    setSuccess(`✅ ${newName.trim()} added successfully!`);
+    setTimeout(() => setSuccess(""), 3000);
+  }
+
+  function removeEmployee(id) {
+    if (!window.confirm("Remove this employee?")) return;
+    const updated = employees.filter(e => e.id !== id);
+    setEmployees(updated);
+    saveEmployees(updated);
+  }
+
+  function changePin(id) {
+    const newP = window.prompt("Enter new 6-digit PIN:");
+    if (!newP) return;
+    if (newP.length !== 6 || !/^\d+$/.test(newP)) { alert("PIN must be exactly 6 digits."); return; }
+    if (employees.find(e => e.pin === newP && e.id !== id)) { alert("That PIN is already in use."); return; }
+    const updated = employees.map(e => e.id === id ? { ...e, pin: newP } : e);
+    setEmployees(updated);
+    saveEmployees(updated);
+    setSuccess("✅ PIN updated!");
+    setTimeout(() => setSuccess(""), 3000);
+  }
+
+  return (
+    <div style={{ maxWidth: 700, margin: "0 auto", padding: "24px 20px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h2 style={{ margin: 0, fontFamily: "'Georgia', serif", color: COLORS.navy }}>🔐 Admin Dashboard</h2>
+          <div style={{ color: COLORS.gray, fontSize: 14 }}>Manage employees & access</div>
+        </div>
+        <button onClick={onLogout} style={{ ...css.outlineBtn, color: COLORS.red, borderColor: COLORS.red }}>Log Out</button>
+      </div>
+
+      {/* Add Employee */}
+      <div style={css.card}>
+        <div style={css.sectionTitle}>Add New Employee</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+          <div>
+            <label style={css.label}>Full Name</label>
+            <input style={css.input} value={newName} onChange={e => { setNewName(e.target.value); setError(""); }} placeholder="e.g. Sofia R." />
+          </div>
+          <div>
+            <label style={css.label}>6-Digit PIN</label>
+            <input style={css.input} value={newPin} onChange={e => { setNewPin(e.target.value.replace(/\D/g,"")); setError(""); }} placeholder="e.g. 445566" maxLength={6} type="password" />
+          </div>
+        </div>
+        {error && <div style={{ color: COLORS.red, fontSize: 13, marginBottom: 12 }}>{error}</div>}
+        {success && <div style={{ color: COLORS.green, fontSize: 13, marginBottom: 12 }}>{success}</div>}
+        <button onClick={addEmployee} style={css.tealBtn}>+ Add Employee</button>
+      </div>
+
+      {/* Employee List */}
+      <div style={css.card}>
+        <div style={css.sectionTitle}>Current Employees ({employees.length})</div>
+        {employees.length === 0 && <div style={{ color: COLORS.gray, fontStyle: "italic" }}>No employees added yet.</div>}
+        {employees.map(emp => (
+          <div key={emp.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", borderBottom: "1px solid #F3F4F6" }}>
+            <div style={{ width: 42, height: 42, borderRadius: "50%", background: emp.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: "bold", fontSize: 16, flexShrink: 0 }}>
+              {emp.name.charAt(0)}
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: "bold", fontSize: 16 }}>{emp.name}</div>
+              <div style={{ color: COLORS.gray, fontSize: 13 }}>PIN: {"••••••"} &nbsp;·&nbsp; ID: {emp.id}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => changePin(emp.id)} style={{ ...css.outlineBtn, padding: "7px 14px", fontSize: 12 }}>Change PIN</button>
+              <button onClick={() => removeEmployee(emp.id)} style={{ background: "transparent", color: COLORS.red, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Instructions */}
+      <div style={{ ...css.card, background: COLORS.lightGray }}>
+        <div style={{ fontWeight: "bold", marginBottom: 8, color: COLORS.navy }}>📋 How it works</div>
+        <div style={{ fontSize: 14, color: COLORS.gray, lineHeight: 1.7 }}>
+          • Add each employee with their name and a unique 6-digit PIN<br/>
+          • Give them their PIN privately — they use it to log into the Employee section<br/>
+          • You can change or remove their PIN anytime from here<br/>
+          • Employees can only see the schedule — they cannot access this admin area
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Employee Login ─────────────────────────────────────────────────────────────
-function EmployeeLogin({ onLogin }) {
+function EmployeeLogin({ onLogin, onAdminLogin }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [shake, setShake] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminPass, setAdminPass] = useState("");
+  const [adminError, setAdminError] = useState("");
 
   function pressKey(k) {
     if (pin.length < 6) setPin(p => p + k);
@@ -393,7 +517,8 @@ function EmployeeLogin({ onLogin }) {
   function clear() { setPin(""); setError(""); }
 
   function handleLogin() {
-    const emp = EMPLOYEES.find(e => e.pin === pin);
+    const employees = loadEmployees();
+    const emp = employees.find(e => e.pin === pin);
     if (emp) {
       localStorage.setItem("cmc_employee", JSON.stringify(emp));
       onLogin(emp);
@@ -404,7 +529,43 @@ function EmployeeLogin({ onLogin }) {
     }
   }
 
+  function handleAdminLogin() {
+    if (adminPass === ADMIN_PASSWORD) {
+      localStorage.setItem("cmc_admin", "true");
+      onAdminLogin();
+    } else {
+      setAdminError("Incorrect password.");
+      setAdminPass("");
+    }
+  }
+
   const keys = ["1","2","3","4","5","6","7","8","9","C","0","⌫"];
+
+  if (showAdmin) {
+    return (
+      <div style={{ maxWidth: 360, margin: "60px auto", padding: "0 24px" }}>
+        <div style={{ ...css.card, textAlign: "center" }}>
+          <div style={{ background: `linear-gradient(135deg, ${COLORS.navyDark}, ${COLORS.navy})`, borderRadius: 10, padding: "20px 0", marginBottom: 24 }}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>🔐</div>
+            <div style={{ color: COLORS.white, fontFamily: "'Georgia', serif", fontSize: 18, fontWeight: "bold" }}>Admin Access</div>
+            <div style={{ color: COLORS.blueLight, fontSize: 12, letterSpacing: 2, textTransform: "uppercase", marginTop: 4 }}>Criss Maid Cleaning</div>
+          </div>
+          <label style={css.label}>Admin Password</label>
+          <input
+            type="password"
+            value={adminPass}
+            onChange={e => { setAdminPass(e.target.value); setAdminError(""); }}
+            onKeyDown={e => e.key === "Enter" && handleAdminLogin()}
+            placeholder="Enter admin password"
+            style={{ ...css.input, marginBottom: 12, textAlign: "center", letterSpacing: 4 }}
+          />
+          {adminError && <div style={{ color: COLORS.red, fontSize: 13, marginBottom: 12 }}>{adminError}</div>}
+          <button onClick={handleAdminLogin} style={{ ...css.tealBtn, width: "100%", marginBottom: 12 }}>Access Admin →</button>
+          <button onClick={() => { setShowAdmin(false); setAdminPass(""); setAdminError(""); }} style={{ ...css.outlineBtn, width: "100%" }}>← Back to Employee Login</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 360, margin: "60px auto", padding: "0 24px" }}>
@@ -415,65 +576,36 @@ function EmployeeLogin({ onLogin }) {
           <div style={{ color: COLORS.blueLight, fontSize: 12, letterSpacing: 2, textTransform: "uppercase", marginTop: 4 }}>Criss Maid Cleaning</div>
         </div>
 
-        {/* PIN dots */}
         <div style={{ marginBottom: 8 }}>
           <div style={{ fontSize: 13, color: COLORS.gray, letterSpacing: 1, textTransform: "uppercase", marginBottom: 16 }}>Enter your 6-digit PIN</div>
-          <div style={{
-            display: "flex", justifyContent: "center", gap: 12, marginBottom: 8,
-            animation: shake ? "shake 0.4s ease" : "none",
-          }}>
+          <div style={{ display: "flex", justifyContent: "center", gap: 12, marginBottom: 8, animation: shake ? "shake 0.4s ease" : "none" }}>
             {[0,1,2,3,4,5].map(i => (
-              <div key={i} style={{
-                width: 18, height: 18, borderRadius: "50%",
-                background: pin.length > i ? COLORS.blue : "transparent",
-                border: `2px solid ${pin.length > i ? COLORS.blue : "#C5D5EC"}`,
-                transition: "all 0.15s",
-              }} />
+              <div key={i} style={{ width: 18, height: 18, borderRadius: "50%", background: pin.length > i ? COLORS.blue : "transparent", border: `2px solid ${pin.length > i ? COLORS.blue : "#C5D5EC"}`, transition: "all 0.15s" }} />
             ))}
           </div>
           {error && <div style={{ color: COLORS.red, fontSize: 13, marginBottom: 4 }}>{error}</div>}
         </div>
 
-        {/* Keypad */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 16 }}>
           {keys.map(k => (
-            <button
-              key={k}
-              onClick={() => {
-                if (k === "⌫") backspace();
-                else if (k === "C") clear();
-                else pressKey(k);
-              }}
-              style={{
-                padding: "16px 0",
-                borderRadius: 10,
-                border: `1px solid ${k === "C" ? "#FECACA" : "#C5D5EC"}`,
-                background: k === "C" ? "#FFF5F5" : k === "⌫" ? COLORS.lightGray : COLORS.white,
-                color: k === "C" ? COLORS.red : COLORS.navy,
-                fontSize: k === "⌫" ? 20 : 22,
-                fontWeight: "bold",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                transition: "background 0.1s",
-                boxShadow: "0 1px 4px rgba(26,58,107,0.08)",
-              }}
+            <button key={k} onClick={() => { if (k === "⌫") backspace(); else if (k === "C") clear(); else pressKey(k); }}
+              style={{ padding: "16px 0", borderRadius: 10, border: `1px solid ${k === "C" ? "#FECACA" : "#C5D5EC"}`, background: k === "C" ? "#FFF5F5" : k === "⌫" ? COLORS.lightGray : COLORS.white, color: k === "C" ? COLORS.red : COLORS.navy, fontSize: k === "⌫" ? 20 : 22, fontWeight: "bold", cursor: "pointer", fontFamily: "inherit", transition: "background 0.1s", boxShadow: "0 1px 4px rgba(26,58,107,0.08)" }}
             >{k}</button>
           ))}
         </div>
 
-        <button
-          onClick={handleLogin}
-          disabled={pin.length < 6}
-          style={{ ...css.tealBtn, width: "100%", opacity: pin.length < 6 ? 0.4 : 1, fontSize: 16 }}
-        >
+        <button onClick={handleLogin} disabled={pin.length < 6} style={{ ...css.tealBtn, width: "100%", opacity: pin.length < 6 ? 0.4 : 1, fontSize: 16, marginBottom: 12 }}>
           Sign In →
         </button>
-        <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 14 }}>Demo PINs: 123456 · 654321 · 112233</div>
+        <button onClick={() => setShowAdmin(true)} style={{ background: "transparent", border: "none", color: COLORS.gray, fontSize: 12, cursor: "pointer", textDecoration: "underline" }}>
+          Admin access
+        </button>
       </div>
       <style>{`@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px)} 40%{transform:translateX(8px)} 60%{transform:translateX(-6px)} 80%{transform:translateX(6px)} }`}</style>
     </div>
   );
 }
+
 
 // ── EmailJS Config ─────────────────────────────────────────────────────────────
 const EMAILJS_PUBLIC_KEY = "xsJ6SE76AVOAqx9Xm";
@@ -860,13 +992,14 @@ export default function App() {
   const [page, setPage] = useState("home");
   const [bookings, setBookings] = useState(DEMO_BOOKINGS);
   const [employee, setEmployee] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
     const saved = localStorage.getItem("cmc_employee");
-    if (saved) {
-      try { setEmployee(JSON.parse(saved)); } catch {}
-    }
+    if (saved) { try { setEmployee(JSON.parse(saved)); } catch {} }
+    const admin = localStorage.getItem("cmc_admin");
+    if (admin === "true") setIsAdmin(true);
   }, []);
 
   function handleBook(b) {
@@ -885,16 +1018,39 @@ export default function App() {
     showToast(`Welcome, ${emp.name}! 👋`);
   }
 
+  function handleAdminLogin() {
+    setIsAdmin(true);
+    setPage("employee");
+    showToast("Welcome, Admin! 🔐");
+  }
+
   function handleLogout() {
     localStorage.removeItem("cmc_employee");
+    localStorage.removeItem("cmc_admin");
     setEmployee(null);
+    setIsAdmin(false);
     setPage("home");
   }
 
+  // Admin dashboard view
+  if (page === "employee" && isAdmin) {
+    return (
+      <div style={css.app}>
+        <header style={{ ...css.header, flexDirection: "row", justifyContent: "space-between", padding: "12px 20px", background: COLORS.navyDark }}>
+          <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 40, objectFit: "contain" }} />
+          <div style={{ color: COLORS.gold, fontSize: 13, fontWeight: "bold" }}>🔐 Admin</div>
+        </header>
+        <AdminDashboard onLogout={handleLogout} />
+        {toast && <div style={css.toast}>{toast}</div>}
+      </div>
+    );
+  }
+
+  // Employee schedule view
   if (page === "employee" && employee) {
     return (
       <div style={css.app}>
-        <header style={{ ...css.header, flexDirection: "row", justifyContent: "space-between", padding: "12px 20px" }}>
+        <header style={{ ...css.header, flexDirection: "row", justifyContent: "space-between", padding: "12px 20px", background: COLORS.navyDark }}>
           <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 40, objectFit: "contain" }} />
           <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13 }}>👋 {employee.name}</div>
         </header>
@@ -904,14 +1060,15 @@ export default function App() {
     );
   }
 
-  if (page === "employee" && !employee) {
+  // Employee login view
+  if (page === "employee" && !employee && !isAdmin) {
     return (
       <div style={css.app}>
-        <header style={{ ...css.header, flexDirection: "row", justifyContent: "space-between", padding: "12px 20px" }}>
+        <header style={{ ...css.header, flexDirection: "row", justifyContent: "space-between", padding: "12px 20px", background: COLORS.navyDark }}>
           <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 40, objectFit: "contain" }} />
           <button onClick={() => setPage("home")} style={{ ...css.navBtn(false), fontSize: 12 }}>← Back</button>
         </header>
-        <EmployeeLogin onLogin={handleLogin} />
+        <EmployeeLogin onLogin={handleLogin} onAdminLogin={handleAdminLogin} />
         {toast && <div style={css.toast}>{toast}</div>}
       </div>
     );
@@ -931,12 +1088,10 @@ export default function App() {
       {/* Home */}
       {page === "home" && (
         <>
-          <div style={{ width: "100%", background: COLORS.white, position: "relative", textAlign: "center" }}>
-            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ width: "100%", display: "block", objectFit: "contain" }} />
-            <div style={{ background: COLORS.white, paddingBottom: 28, paddingTop: 0 }}>
-              <p style={{ fontFamily: "'Georgia', serif", fontSize: 17, color: COLORS.navy, fontWeight: "bold", letterSpacing: 2, margin: "0 0 20px", textTransform: "uppercase" }}>Professional · Reliable · Spotless</p>
-              <button onClick={() => setPage("book")} style={css.heroBtn}>Book a Cleaning →</button>
-            </div>
+          <div style={css.hero}>
+            <img src="/logo.png" alt="Criss Maid Cleaning" style={{ width: "85%", maxWidth: 380, objectFit: "contain", marginBottom: 16, mixBlendMode: "screen" }} />
+            <p style={{ ...css.heroSub, color: COLORS.white, fontWeight: "bold", fontSize: 17, letterSpacing: 2 }}>Professional · Reliable · Spotless</p>
+            <button onClick={() => setPage("book")} style={css.heroBtn}>Book a Cleaning →</button>
           </div>
 
           <div style={css.section}>
