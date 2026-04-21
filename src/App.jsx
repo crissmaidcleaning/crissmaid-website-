@@ -34,9 +34,14 @@ function saveEmployees(list) {
   localStorage.setItem("cmc_employees", JSON.stringify(list));
 }
 
-const EXTRAS = [
+// Extras only apply to recurring/returning cleanings
+const EXTRAS_RECURRING = [
   { id: "fridge", label: "Fridge (inside & out)", price: 45 },
   { id: "oven", label: "Oven cleaning", price: 45 },
+  { id: "silver", label: "Silver cleaning", price: null, quote: true },
+];
+// For first cleaning, silver can still be requested (quoted separately)
+const EXTRAS_FIRST = [
   { id: "silver", label: "Silver cleaning", price: null, quote: true },
 ];
 
@@ -239,49 +244,66 @@ function CalendarView({ bookings, onSelectSlot, selectedDate, selectedSlot }) {
   );
 }
 
-// ── Pricing Calculator ─────────────────────────────────────────────────────────
+// ── Pricing Display ────────────────────────────────────────────────────────────
 function PricingEstimate({ homeSize, crew, isFirst, extras, recurringFreq }) {
   if (!homeSize) return null;
-  const sizeObj = HOME_SIZES.find(h => h.label === homeSize);
   const recurObj = RECURRING_PRICES.find(r => r.label === homeSize);
-  if (!sizeObj) return null;
 
-  let basePrice = 0;
-  let label = "";
+  // FIRST CLEANING — no total shown, free estimate messaging
   if (isFirst) {
-    const hours = crew === 2 ? sizeObj.crew2h : sizeObj.crew3h;
-    const rate = crew === 2 ? 76 : 130;
-    basePrice = Math.round(hours * rate);
-    label = `First cleaning · ${hours}h · ${crew === 2 ? "2-person @ $76/hr" : "3-person @ $130/hr"}`;
-  } else if (recurringFreq && recurringFreq !== "none") {
-    basePrice = recurObj[recurringFreq] || 0;
-    label = `Recurring (${recurringFreq}) flat rate`;
+    const hasSilver = extras.includes("silver");
+    return (
+      <div style={css.priceBox}>
+        <div style={{ fontSize: 13, color: COLORS.blueLight, marginBottom: 8 }}>
+          {crew === 2 ? "2-person crew · $75/hr" : "3-person crew · $130/hr"}
+        </div>
+        <div style={{ fontSize: 15, color: COLORS.white, marginBottom: 8, lineHeight: 1.6 }}>
+          ✅ Fridge (inside & out) included<br/>
+          ✅ Oven cleaning included<br/>
+          ✅ Full deep clean included
+          {hasSilver && <><br/>🔔 Silver cleaning — quote required</>}
+        </div>
+        <div style={css.priceAmount}>Free Estimate</div>
+        <div style={{ fontSize: 13, color: "#AAA", marginTop: 6 }}>
+          We'll contact you with an exact quote before your appointment.
+        </div>
+      </div>
+    );
   }
 
-  let extrasTotal = 0;
-  let extrasLines = [];
-  let needsQuote = false;
-  (extras || []).forEach(eid => {
-    const ex = EXTRAS.find(e => e.id === eid);
-    if (!ex) return;
-    if (ex.quote) { needsQuote = true; extrasLines.push({ label: ex.label, price: "Quote" }); }
-    else { extrasTotal += ex.price; extrasLines.push({ label: ex.label, price: `$${ex.price}` }); }
-  });
-
-  const total = basePrice + extrasTotal;
-
-  return (
-    <div style={css.priceBox}>
-      <div style={{ fontSize: 13, color: COLORS.blueLight, marginBottom: 4 }}>{label}</div>
-      {extrasLines.map(l => (
-        <div key={l.label} style={{ display: "flex", justifyContent: "space-between", color: "#DDD", fontSize: 13, marginBottom: 2 }}>
-          <span>+ {l.label}</span><span>{l.price}</span>
+  // RECURRING — show flat rate + extras
+  if (recurringFreq && recurringFreq !== "none" && recurObj) {
+    const basePrice = recurObj[recurringFreq] || 0;
+    let extrasTotal = 0;
+    let extrasLines = [];
+    let needsQuote = false;
+    extras.forEach(eid => {
+      const ex = EXTRAS_RECURRING.find(e => e.id === eid);
+      if (!ex) return;
+      if (ex.quote) { needsQuote = true; extrasLines.push({ label: ex.label, price: "Quote" }); }
+      else { extrasTotal += ex.price; extrasLines.push({ label: ex.label, price: `+$${ex.price}` }); }
+    });
+    const total = basePrice + extrasTotal;
+    return (
+      <div style={css.priceBox}>
+        <div style={{ fontSize: 13, color: COLORS.blueLight, marginBottom: 4 }}>
+          Recurring flat rate · {recurringFreq}
         </div>
-      ))}
-      <div style={css.priceAmount}>{needsQuote ? `$${total}+ (quote req'd)` : `$${total}`}</div>
-      <div style={{ fontSize: 12, color: "#AAA", marginTop: 4 }}>Estimated total {needsQuote ? "(silver cleaning TBD)" : ""}</div>
-    </div>
-  );
+        <div style={{ fontSize: 13, color: "#DDD", marginBottom: 8, lineHeight: 1.6 }}>
+          ⚠️ Fridge & oven cleaning not included — add below if needed
+        </div>
+        {extrasLines.map(l => (
+          <div key={l.label} style={{ display: "flex", justifyContent: "space-between", color: "#DDD", fontSize: 13, marginBottom: 2 }}>
+            <span>+ {l.label}</span><span>{l.price}</span>
+          </div>
+        ))}
+        <div style={css.priceAmount}>{needsQuote ? `$${total}+ (quote for silver)` : `$${total}`}</div>
+        <div style={{ fontSize: 12, color: "#AAA", marginTop: 4 }}>Estimated flat rate total</div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // ── Employee Schedule View ─────────────────────────────────────────────────────
@@ -617,7 +639,7 @@ async function sendEmails(booking) {
   try {
     const sizeObj = HOME_SIZES.find(h => h.label === booking.homeSize);
     const hours = booking.crew === 2 ? sizeObj?.crew2h : sizeObj?.crew3h;
-    const rate = booking.crew === 2 ? 76 : 130;
+    const rate = booking.crew === 2 ? 75 : 130;
     const basePrice = booking.isFirst ? Math.round((hours || 0) * rate) : "Flat rate";
     const extrasTotal = (booking.extras || []).reduce((sum, eid) => {
       const ex = EXTRAS.find(e => e.id === eid);
@@ -800,54 +822,104 @@ function BookingForm({ bookings, onBook }) {
             <label style={css.label}>Is this your first cleaning with us?</label>
             <div style={{ display: "flex", gap: 12 }}>
               {[true, false].map(v => (
-                <button key={String(v)} onClick={() => set("isFirst", v)} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `2px solid ${form.isFirst === v ? COLORS.blue : "#E5E7EB"}`, background: form.isFirst === v ? COLORS.blue + "15" : COLORS.white, color: form.isFirst === v ? COLORS.blue : COLORS.gray, cursor: "pointer", fontFamily: "inherit", fontSize: 14 }}>
+                <button key={String(v)} onClick={() => { set("isFirst", v); set("extras", []); }} style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: `2px solid ${form.isFirst === v ? COLORS.blue : "#E5E7EB"}`, background: form.isFirst === v ? COLORS.blue + "15" : COLORS.white, color: form.isFirst === v ? COLORS.blue : COLORS.gray, cursor: "pointer", fontFamily: "inherit", fontSize: 14 }}>
                   {v ? "Yes – First cleaning" : "No – Returning client"}
                 </button>
               ))}
             </div>
           </div>
 
+          {/* FIRST CLEANING */}
           {form.isFirst && (
-            <div style={css.formGroup}>
-              <label style={css.label}>Crew Size</label>
-              <div style={{ display: "flex", gap: 12 }}>
-                {[2, 3].map(n => (
-                  <button key={n} onClick={() => set("crew", n)} style={{ flex: 1, padding: "12px 0", borderRadius: 8, border: `2px solid ${form.crew === n ? COLORS.blue : "#E5E7EB"}`, background: form.crew === n ? COLORS.blue + "15" : COLORS.white, color: form.crew === n ? COLORS.blue : COLORS.gray, cursor: "pointer", fontFamily: "inherit" }}>
-                    <div style={{ fontWeight: "bold", fontSize: 16 }}>{n} People</div>
-                    <div style={{ fontSize: 13 }}>${n === 2 ? 76 : 130}/hr</div>
-                  </button>
-                ))}
+            <>
+              <div style={css.formGroup}>
+                <label style={css.label}>Crew Size</label>
+                <div style={{ display: "flex", gap: 12 }}>
+                  {[2, 3].map(n => (
+                    <button key={n} onClick={() => set("crew", n)} style={{ flex: 1, padding: "12px 0", borderRadius: 8, border: `2px solid ${form.crew === n ? COLORS.blue : "#E5E7EB"}`, background: form.crew === n ? COLORS.blue + "15" : COLORS.white, color: form.crew === n ? COLORS.blue : COLORS.gray, cursor: "pointer", fontFamily: "inherit" }}>
+                      <div style={{ fontWeight: "bold", fontSize: 16 }}>{n} People</div>
+                      <div style={{ fontSize: 13 }}>${n === 2 ? 75 : 130}/hr</div>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
 
-          {!form.isFirst && (
-            <div style={css.formGroup}>
-              <label style={css.label}>Recurring Frequency</label>
-              <select style={css.select} value={form.recurringFreq} onChange={e => set("recurringFreq", e.target.value)}>
-                <option value="none">One-time only</option>
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Bi-weekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
-            </div>
-          )}
+              {/* What's included notice */}
+              <div style={{ background: COLORS.green + "15", border: `1px solid ${COLORS.green}`, borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+                <div style={{ fontWeight: "bold", color: COLORS.green, marginBottom: 6, fontSize: 14 }}>✅ First Cleaning Includes Everything:</div>
+                <div style={{ fontSize: 13, color: COLORS.navy, lineHeight: 1.8 }}>
+                  • Full deep clean of all rooms<br/>
+                  • Fridge (inside &amp; out)<br/>
+                  • Oven cleaning<br/>
+                  • All standard cleaning tasks
+                </div>
+              </div>
 
-          <div style={css.formGroup}>
-            <label style={css.label}>Add-on Services</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {EXTRAS.map(ex => (
-                <label key={ex.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 8, border: `1px solid ${form.extras.includes(ex.id) ? COLORS.blue : "#E5E7EB"}`, background: form.extras.includes(ex.id) ? COLORS.blue + "08" : COLORS.white }}>
-                  <input type="checkbox" checked={form.extras.includes(ex.id)} onChange={() => toggleExtra(ex.id)} />
-                  <span style={{ flex: 1 }}>{ex.label}</span>
-                  <span style={{ color: COLORS.blue, fontWeight: "bold" }}>{ex.quote ? "Quote" : `$${ex.price}`}</span>
+              {/* Silver cleaning option */}
+              <div style={css.formGroup}>
+                <label style={css.label}>Additional Services</label>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 8, border: `1px solid ${form.extras.includes("silver") ? COLORS.blue : "#E5E7EB"}`, background: form.extras.includes("silver") ? COLORS.blue + "08" : COLORS.white }}>
+                  <input type="checkbox" checked={form.extras.includes("silver")} onChange={() => toggleExtra("silver")} />
+                  <span style={{ flex: 1 }}>🥄 Silver cleaning</span>
+                  <span style={{ color: COLORS.blue, fontWeight: "bold" }}>Quote required</span>
                 </label>
-              ))}
-            </div>
-            <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 8 }}>⚠️ No laundry services available.</div>
-          </div>
+                <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 8 }}>
+                  🚫 We do not offer laundry services.
+                </div>
+              </div>
 
-          <PricingEstimate homeSize={form.homeSize} crew={form.crew} isFirst={form.isFirst} extras={form.extras} recurringFreq={form.recurringFreq} />
+              {/* No price shown — free estimate */}
+              <div style={{ background: COLORS.navy, borderRadius: 10, padding: "18px 20px", textAlign: "center", marginBottom: 16 }}>
+                <div style={{ fontSize: 13, color: COLORS.blueLight, marginBottom: 6 }}>
+                  {form.crew === 2 ? "2-person crew · $75/hr" : "3-person crew · $130/hr"} · Fridge &amp; Oven included
+                </div>
+                <div style={{ fontSize: 28, fontWeight: "bold", color: COLORS.green }}>Free Estimate</div>
+                <div style={{ fontSize: 13, color: "#AAA", marginTop: 6 }}>We'll contact you with your exact quote before the appointment.</div>
+              </div>
+            </>
+          )}
+
+          {/* RETURNING CLIENT */}
+          {!form.isFirst && (
+            <>
+              <div style={css.formGroup}>
+                <label style={css.label}>Recurring Frequency</label>
+                <select style={css.select} value={form.recurringFreq} onChange={e => set("recurringFreq", e.target.value)}>
+                  <option value="none">One-time only</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Bi-weekly</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
+
+              {/* What's NOT included notice */}
+              <div style={{ background: "#FFF9F0", border: "1px solid #F39C12", borderRadius: 10, padding: "14px 16px", marginBottom: 20 }}>
+                <div style={{ fontWeight: "bold", color: "#E67E22", marginBottom: 6, fontSize: 14 }}>ℹ️ Recurring Flat Rate — Note:</div>
+                <div style={{ fontSize: 13, color: COLORS.navy, lineHeight: 1.8 }}>
+                  • Your flat rate covers standard cleaning<br/>
+                  • Fridge (inside &amp; out): <strong>+$45 extra</strong><br/>
+                  • Oven cleaning: <strong>+$45 extra</strong><br/>
+                  • Silver cleaning: <strong>Quote required</strong><br/>
+                  • 🚫 We do not offer laundry services
+                </div>
+              </div>
+
+              <div style={css.formGroup}>
+                <label style={css.label}>Add-on Services (optional)</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {EXTRAS_RECURRING.map(ex => (
+                    <label key={ex.id} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 14px", borderRadius: 8, border: `1px solid ${form.extras.includes(ex.id) ? COLORS.blue : "#E5E7EB"}`, background: form.extras.includes(ex.id) ? COLORS.blue + "08" : COLORS.white }}>
+                      <input type="checkbox" checked={form.extras.includes(ex.id)} onChange={() => toggleExtra(ex.id)} />
+                      <span style={{ flex: 1 }}>{ex.label}</span>
+                      <span style={{ color: COLORS.blue, fontWeight: "bold" }}>{ex.quote ? "Quote required" : `+$${ex.price}`}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <PricingEstimate homeSize={form.homeSize} crew={form.crew} isFirst={form.isFirst} extras={form.extras} recurringFreq={form.recurringFreq} />
+            </>
+          )}
         </div>
       )}
 
@@ -904,15 +976,27 @@ function BookingForm({ bookings, onBook }) {
 function PricingPage() {
   return (
     <div style={css.section}>
+
+      {/* First Cleaning */}
       <div style={css.card}>
-        <div style={css.sectionTitle}>First Cleaning Rates</div>
+        <div style={css.sectionTitle}>First Cleaning — Free Estimate</div>
+        <div style={{ background: COLORS.green + "12", border: `1px solid ${COLORS.green}`, borderRadius: 10, padding: "14px 18px", marginBottom: 20 }}>
+          <div style={{ fontWeight: "bold", color: COLORS.green, marginBottom: 6 }}>✅ First Cleaning Includes Everything:</div>
+          <div style={{ fontSize: 14, color: COLORS.navy, lineHeight: 1.8 }}>
+            • Full deep clean of all rooms<br/>
+            • Fridge (inside &amp; out) — included at no extra charge<br/>
+            • Oven cleaning — included at no extra charge<br/>
+            • All standard cleaning tasks<br/>
+            • Silver cleaning available by quote (additional)
+          </div>
+        </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
             <thead>
               <tr style={{ background: COLORS.navy, color: COLORS.white }}>
                 <th style={{ padding: "12px 16px", textAlign: "left" }}>Home Size</th>
                 <th style={{ padding: "12px 16px", textAlign: "center" }}>Sq Ft</th>
-                <th style={{ padding: "12px 16px", textAlign: "center" }}>2-Person ($76/hr)</th>
+                <th style={{ padding: "12px 16px", textAlign: "center" }}>2-Person ($75/hr)</th>
                 <th style={{ padding: "12px 16px", textAlign: "center" }}>3-Person ($130/hr)</th>
               </tr>
             </thead>
@@ -921,17 +1005,30 @@ function PricingPage() {
                 <tr key={h.label} style={{ background: i % 2 === 0 ? COLORS.white : COLORS.lightGray }}>
                   <td style={{ padding: "11px 16px", fontWeight: "bold" }}>{h.label}</td>
                   <td style={{ padding: "11px 16px", textAlign: "center", color: COLORS.gray }}>{h.sqft}</td>
-                  <td style={{ padding: "11px 16px", textAlign: "center", color: COLORS.blue, fontWeight: "bold" }}>${Math.round(h.crew2h * 76)}</td>
-                  <td style={{ padding: "11px 16px", textAlign: "center", color: COLORS.blue, fontWeight: "bold" }}>${Math.round(h.crew3h * 130)}</td>
+                  <td style={{ padding: "11px 16px", textAlign: "center", color: COLORS.blue, fontWeight: "bold" }}>~${Math.round(h.crew2h * 75)}*</td>
+                  <td style={{ padding: "11px 16px", textAlign: "center", color: COLORS.blue, fontWeight: "bold" }}>~${Math.round(h.crew3h * 130)}*</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 10 }}>
+          * Estimates only — exact total quoted after free in-home assessment. Crew size and hours may vary.
+        </div>
       </div>
 
+      {/* Recurring */}
       <div style={css.card}>
-        <div style={css.sectionTitle}>Recurring Cleaning Flat Rates</div>
+        <div style={css.sectionTitle}>Recurring Cleaning — Flat Rates</div>
+        <div style={{ background: "#FFF9F0", border: "1px solid #F39C12", borderRadius: 10, padding: "14px 18px", marginBottom: 20 }}>
+          <div style={{ fontWeight: "bold", color: "#E67E22", marginBottom: 6 }}>ℹ️ Recurring Rate Does Not Include:</div>
+          <div style={{ fontSize: 14, color: COLORS.navy, lineHeight: 1.8 }}>
+            • Fridge (inside &amp; out) — <strong>+$45</strong> if requested<br/>
+            • Oven cleaning — <strong>+$45</strong> if requested<br/>
+            • Silver cleaning — <strong>Quote required</strong><br/>
+            • 🚫 Laundry services are not available
+          </div>
+        </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
             <thead>
@@ -956,27 +1053,39 @@ function PricingPage() {
         </div>
       </div>
 
+      {/* Add-ons */}
       <div style={css.card}>
-        <div style={css.sectionTitle}>Add-On Services</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 16 }}>
-          {EXTRAS.map(ex => (
-            <div key={ex.id} style={{ border: `1px solid #E5E7EB`, borderRadius: 10, padding: 20, textAlign: "center" }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>{ex.id === "fridge" ? "🧊" : ex.id === "oven" ? "🔥" : "🥄"}</div>
-              <div style={{ fontWeight: "bold", marginBottom: 4 }}>{ex.label}</div>
-              <div style={{ color: COLORS.blue, fontSize: 20, fontWeight: "bold" }}>{ex.quote ? "Call for Quote" : `$${ex.price}`}</div>
-            </div>
-          ))}
+        <div style={css.sectionTitle}>Add-On Services (Recurring Clients)</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px,1fr))", gap: 16 }}>
+          <div style={{ border: `1px solid #E5E7EB`, borderRadius: 10, padding: 20, textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🧊</div>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>Fridge (inside &amp; out)</div>
+            <div style={{ color: COLORS.blue, fontSize: 22, fontWeight: "bold" }}>$45</div>
+            <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 4 }}>Included in first cleaning</div>
+          </div>
+          <div style={{ border: `1px solid #E5E7EB`, borderRadius: 10, padding: 20, textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🔥</div>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>Oven cleaning</div>
+            <div style={{ color: COLORS.blue, fontSize: 22, fontWeight: "bold" }}>$45</div>
+            <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 4 }}>Included in first cleaning</div>
+          </div>
+          <div style={{ border: `1px solid #E5E7EB`, borderRadius: 10, padding: 20, textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🥄</div>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>Silver cleaning</div>
+            <div style={{ color: COLORS.blue, fontSize: 18, fontWeight: "bold" }}>Call for Quote</div>
+            <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 4 }}>All clients</div>
+          </div>
           <div style={{ border: `1px solid #E5E7EB`, borderRadius: 10, padding: 20, textAlign: "center", background: "#FFF9F9" }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🚫</div>
-            <div style={{ fontWeight: "bold", marginBottom: 4, color: COLORS.gray }}>Laundry</div>
+            <div style={{ fontWeight: "bold", color: COLORS.gray, marginBottom: 4 }}>Laundry</div>
             <div style={{ color: COLORS.red, fontSize: 14 }}>Not Available</div>
           </div>
         </div>
       </div>
 
       <div style={{ ...css.card, background: COLORS.navy, color: COLORS.white }}>
-        <div style={{ fontSize: 18, fontFamily: "'Georgia', serif", marginBottom: 8, color: COLORS.greenLight }}>📞 Contact Us for Quotes</div>
-        <p style={{ color: "#DDD", marginBottom: 16, fontSize: 14 }}>Silver cleaning pricing depends on the quantity and condition of items. Contact us for a personalized quote.</p>
+        <div style={{ fontSize: 18, fontFamily: "'Georgia', serif", marginBottom: 8, color: COLORS.greenLight }}>📞 Get Your Free Estimate</div>
+        <p style={{ color: "#DDD", marginBottom: 16, fontSize: 14 }}>First cleaning totals and silver cleaning are always quoted. Contact us and we'll give you a personalized quote at no charge.</p>
         <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
           <div style={{ color: COLORS.blueLight }}>📱 (240) 413-4313</div>
           <div style={{ color: COLORS.blueLight }}>📱 (301) 768-1371</div>
@@ -1098,9 +1207,9 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))", gap: 20, marginBottom: 32 }}>
               {[
                 { icon: "🏠", title: "All Home Sizes", desc: "From studios to 5+ bedroom homes. First cleaning & recurring options." },
-                { icon: "👥", title: "2 or 3-Person Crews", desc: "$76/hr for 2 people, $130/hr for 3. Faster, more thorough cleaning." },
+                { icon: "👥", title: "2 or 3-Person Crews", desc: "$75/hr for 2 people, $130/hr for 3. Faster, more thorough cleaning." },
                 { icon: "📅", title: "Easy Scheduling", desc: "Book online in minutes. See real-time availability on our calendar." },
-                { icon: "⭐", title: "Add-On Services", desc: "Fridge, oven cleaning & more. Silver cleaning available by quote." },
+                { icon: "⭐", title: "Add-On Services", desc: "Recurring clients can add fridge & oven cleaning for $45 each. Silver cleaning quoted separately." },
               ].map(f => (
                 <div key={f.title} style={{ ...css.card, textAlign: "center", marginBottom: 0, background: COLORS.white }}>
                   <div style={{ fontSize: 36, marginBottom: 12 }}>{f.icon}</div>
