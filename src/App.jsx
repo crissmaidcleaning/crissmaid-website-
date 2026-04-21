@@ -346,8 +346,8 @@ function EmployeeSchedule({ bookings, employee, onLogout }) {
         {todayJobs.length === 0 ? (
           <div style={{ color: COLORS.gray, fontStyle: "italic" }}>No jobs scheduled today.</div>
         ) : todayJobs.map(b => (
-          <div key={b.id} onClick={() => setSelectedB(b)} style={{ borderLeft: `4px solid ${COLORS.blue}`, paddingLeft: 16, marginBottom: 16, cursor: "pointer" }}>
-            <div style={{ fontWeight: "bold", fontSize: 16 }}>{b.slot} — {b.name}</div>
+          <div key={b.id} onClick={() => setSelectedB(b)} style={{ borderLeft: `4px solid ${b.isFirst ? COLORS.green : COLORS.blue}`, paddingLeft: 16, marginBottom: 16, cursor: "pointer" }}>
+            <div style={{ fontWeight: "bold", fontSize: 16 }}>{b.slot} — {b.name} {b.isFirst && <span style={{ background: COLORS.green + "20", color: COLORS.green, fontSize: 12, borderRadius: 10, padding: "2px 8px", fontWeight: "bold" }}>Free Estimate</span>}</div>
             <div style={{ color: COLORS.gray, fontSize: 14 }}>{b.address} · {b.homeSize} · {b.crew}-person crew</div>
             <div style={{ color: COLORS.gray, fontSize: 13 }}>Est. {b.estimatedHours}h + {b.travelMins}min travel</div>
             {b.notes && <div style={{ color: COLORS.blue, fontSize: 13, marginTop: 4 }}>📝 {b.notes}</div>}
@@ -415,13 +415,16 @@ function EmployeeSchedule({ bookings, employee, onLogout }) {
 }
 
 // ── Admin Dashboard ────────────────────────────────────────────────────────────
-function AdminDashboard({ onLogout }) {
+function AdminDashboard({ onLogout, bookings, onAssign }) {
   const [employees, setEmployees] = useState(loadEmployees());
   const [newName, setNewName] = useState("");
   const [newPin, setNewPin] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [activeTab, setActiveTab] = useState("estimates");
   const COLORS_LIST = ["#2468C0","#4BAD2E","#4A90D9","#E67E22","#9B59B6","#E74C3C","#1ABC9C","#F39C12"];
+
+  const freeEstimates = bookings.filter(b => b.isFirst);
 
   function addEmployee() {
     if (!newName.trim()) { setError("Please enter a name."); return; }
@@ -460,65 +463,141 @@ function AdminDashboard({ onLogout }) {
     setTimeout(() => setSuccess(""), 3000);
   }
 
+  const tabStyle = (active) => ({
+    flex: 1, padding: "10px 0", textAlign: "center", cursor: "pointer",
+    borderBottom: `3px solid ${active ? COLORS.blue : "transparent"}`,
+    color: active ? COLORS.blue : COLORS.gray, fontWeight: active ? "bold" : "normal",
+    fontSize: 14, background: "none", border: "none", borderBottom: `3px solid ${active ? COLORS.blue : "transparent"}`,
+    fontFamily: "inherit",
+  });
+
   return (
-    <div style={{ maxWidth: 700, margin: "0 auto", padding: "24px 20px" }}>
+    <div style={{ maxWidth: 760, margin: "0 auto", padding: "24px 20px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
         <div>
           <h2 style={{ margin: 0, fontFamily: "'Georgia', serif", color: COLORS.navy }}>🔐 Admin Dashboard</h2>
-          <div style={{ color: COLORS.gray, fontSize: 14 }}>Manage employees & access</div>
+          <div style={{ color: COLORS.gray, fontSize: 14 }}>Criss Maid Cleaning</div>
         </div>
         <button onClick={onLogout} style={{ ...css.outlineBtn, color: COLORS.red, borderColor: COLORS.red }}>Log Out</button>
       </div>
 
-      {/* Add Employee */}
-      <div style={css.card}>
-        <div style={css.sectionTitle}>Add New Employee</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-          <div>
-            <label style={css.label}>Full Name</label>
-            <input style={css.input} value={newName} onChange={e => { setNewName(e.target.value); setError(""); }} placeholder="e.g. Sofia R." />
-          </div>
-          <div>
-            <label style={css.label}>6-Digit PIN</label>
-            <input style={css.input} value={newPin} onChange={e => { setNewPin(e.target.value.replace(/\D/g,"")); setError(""); }} placeholder="e.g. 445566" maxLength={6} type="password" />
-          </div>
-        </div>
-        {error && <div style={{ color: COLORS.red, fontSize: 13, marginBottom: 12 }}>{error}</div>}
-        {success && <div style={{ color: COLORS.green, fontSize: 13, marginBottom: 12 }}>{success}</div>}
-        <button onClick={addEmployee} style={css.tealBtn}>+ Add Employee</button>
+      {/* Tabs */}
+      <div style={{ display: "flex", background: COLORS.white, borderRadius: 10, marginBottom: 24, boxShadow: "0 2px 8px rgba(0,0,0,0.06)", overflow: "hidden" }}>
+        <button style={tabStyle(activeTab === "estimates")} onClick={() => setActiveTab("estimates")}>
+          ✨ Free Estimates {freeEstimates.length > 0 && <span style={{ background: COLORS.blue, color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 11, marginLeft: 4 }}>{freeEstimates.length}</span>}
+        </button>
+        <button style={tabStyle(activeTab === "employees")} onClick={() => setActiveTab("employees")}>
+          👥 Employees
+        </button>
       </div>
 
-      {/* Employee List */}
-      <div style={css.card}>
-        <div style={css.sectionTitle}>Current Employees ({employees.length})</div>
-        {employees.length === 0 && <div style={{ color: COLORS.gray, fontStyle: "italic" }}>No employees added yet.</div>}
-        {employees.map(emp => (
-          <div key={emp.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", borderBottom: "1px solid #F3F4F6" }}>
-            <div style={{ width: 42, height: 42, borderRadius: "50%", background: emp.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: "bold", fontSize: 16, flexShrink: 0 }}>
-              {emp.name.charAt(0)}
+      {/* FREE ESTIMATES TAB */}
+      {activeTab === "estimates" && (
+        <div>
+          <div style={css.card}>
+            <div style={css.sectionTitle}>Free Estimate Requests</div>
+            {freeEstimates.length === 0 ? (
+              <div style={{ color: COLORS.gray, fontStyle: "italic" }}>No free estimate requests yet.</div>
+            ) : freeEstimates.map(b => {
+              const assigned = employees.find(e => e.id === b.assignedTo);
+              return (
+                <div key={b.id} style={{ padding: "16px 0", borderBottom: "1px solid #F3F4F6" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <span style={{ fontWeight: "bold", fontSize: 16 }}>{b.name}</span>
+                        {assigned
+                          ? <span style={{ background: COLORS.green + "20", color: COLORS.green, border: `1px solid ${COLORS.green}`, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: "bold" }}>Assigned to {assigned.name}</span>
+                          : <span style={{ background: COLORS.red + "15", color: COLORS.red, border: `1px solid ${COLORS.red}`, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: "bold" }}>Unassigned</span>
+                        }
+                      </div>
+                      <div style={{ color: COLORS.gray, fontSize: 13, lineHeight: 1.7 }}>
+                        📅 {b.date} @ {b.slot}<br/>
+                        📍 {b.address}<br/>
+                        🏠 {b.homeSize}<br/>
+                        📱 {b.phone} &nbsp;·&nbsp; ✉️ {b.email}
+                        {b.notes && <><br/>📝 {b.notes}</>}
+                      </div>
+                    </div>
+                    <div style={{ minWidth: 160 }}>
+                      <label style={{ ...css.label, marginBottom: 6 }}>Assign to:</label>
+                      <select
+                        style={{ ...css.select, fontSize: 13 }}
+                        value={b.assignedTo || ""}
+                        onChange={e => onAssign(b.id, e.target.value ? Number(e.target.value) : null)}
+                      >
+                        <option value="">— Unassigned —</option>
+                        {employees.map(emp => (
+                          <option key={emp.id} value={emp.id}>{emp.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* EMPLOYEES TAB */}
+      {activeTab === "employees" && (
+        <div>
+          {/* Add Employee */}
+          <div style={css.card}>
+            <div style={css.sectionTitle}>Add New Employee</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+              <div>
+                <label style={css.label}>Full Name</label>
+                <input style={css.input} value={newName} onChange={e => { setNewName(e.target.value); setError(""); }} placeholder="e.g. Sofia R." />
+              </div>
+              <div>
+                <label style={css.label}>6-Digit PIN</label>
+                <input style={css.input} value={newPin} onChange={e => { setNewPin(e.target.value.replace(/\D/g,"")); setError(""); }} placeholder="e.g. 445566" maxLength={6} type="password" />
+              </div>
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: "bold", fontSize: 16 }}>{emp.name}</div>
-              <div style={{ color: COLORS.gray, fontSize: 13 }}>PIN: {"••••••"} &nbsp;·&nbsp; ID: {emp.id}</div>
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => changePin(emp.id)} style={{ ...css.outlineBtn, padding: "7px 14px", fontSize: 12 }}>Change PIN</button>
-              <button onClick={() => removeEmployee(emp.id)} style={{ background: "transparent", color: COLORS.red, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+            {error && <div style={{ color: COLORS.red, fontSize: 13, marginBottom: 12 }}>{error}</div>}
+            {success && <div style={{ color: COLORS.green, fontSize: 13, marginBottom: 12 }}>{success}</div>}
+            <button onClick={addEmployee} style={css.tealBtn}>+ Add Employee</button>
+          </div>
+
+          {/* Employee List */}
+          <div style={css.card}>
+            <div style={css.sectionTitle}>Current Employees ({employees.length})</div>
+            {employees.length === 0 && <div style={{ color: COLORS.gray, fontStyle: "italic" }}>No employees added yet.</div>}
+            {employees.map(emp => (
+              <div key={emp.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", borderBottom: "1px solid #F3F4F6" }}>
+                <div style={{ width: 42, height: 42, borderRadius: "50%", background: emp.color, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: "bold", fontSize: 16, flexShrink: 0 }}>
+                  {emp.name.charAt(0)}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "bold", fontSize: 16 }}>{emp.name}</div>
+                  <div style={{ color: COLORS.gray, fontSize: 13 }}>
+                    PIN: ••••••
+                    &nbsp;·&nbsp;
+                    {freeEstimates.filter(b => b.assignedTo === emp.id).length} estimate(s) assigned
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => changePin(emp.id)} style={{ ...css.outlineBtn, padding: "7px 14px", fontSize: 12 }}>Change PIN</button>
+                  <button onClick={() => removeEmployee(emp.id)} style={{ background: "transparent", color: COLORS.red, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ ...css.card, background: COLORS.lightGray }}>
+            <div style={{ fontWeight: "bold", marginBottom: 8, color: COLORS.navy }}>📋 How it works</div>
+            <div style={{ fontSize: 14, color: COLORS.gray, lineHeight: 1.7 }}>
+              • Add each employee with their name and a unique 6-digit PIN<br/>
+              • Give them their PIN privately — they use it to log into the Employee section<br/>
+              • You can change or remove their PIN anytime from here<br/>
+              • Assign free estimates to employees from the Estimates tab<br/>
+              • Employees can only see the schedule — they cannot access this admin area
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Instructions */}
-      <div style={{ ...css.card, background: COLORS.lightGray }}>
-        <div style={{ fontWeight: "bold", marginBottom: 8, color: COLORS.navy }}>📋 How it works</div>
-        <div style={{ fontSize: 14, color: COLORS.gray, lineHeight: 1.7 }}>
-          • Add each employee with their name and a unique 6-digit PIN<br/>
-          • Give them their PIN privately — they use it to log into the Employee section<br/>
-          • You can change or remove their PIN anytime from here<br/>
-          • Employees can only see the schedule — they cannot access this admin area
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -745,17 +824,29 @@ function BookingForm({ bookings, onBook }) {
   if (submitted) {
     return (
       <div style={{ ...css.card, textAlign: "center", padding: 48 }}>
-        <div style={{ fontSize: 52, marginBottom: 16 }}>✅</div>
-        <h2 style={{ fontFamily: "'Georgia', serif", color: COLORS.blue }}>Booking Confirmed!</h2>
-        <p style={{ color: COLORS.gray }}>Thank you, {form.name}! We'll see you on {form.date} at {form.slot}.</p>
-        <p style={{ color: COLORS.gray, fontSize: 14 }}>A confirmation email has been sent to {form.email}</p>
+        <div style={{ fontSize: 52, marginBottom: 16 }}>{form.isFirst ? "🎉" : "✅"}</div>
+        <h2 style={{ fontFamily: "'Georgia', serif", color: COLORS.blue }}>
+          {form.isFirst ? "Free Estimate Scheduled!" : "Booking Confirmed!"}
+        </h2>
+        <p style={{ color: COLORS.gray }}>
+          {form.isFirst
+            ? `Thank you, ${form.name}! Your free estimate is scheduled for ${form.date} at ${form.slot}.`
+            : `Thank you, ${form.name}! We'll see you on ${form.date} at ${form.slot}.`}
+        </p>
+        {form.isFirst && (
+          <div style={{ background: COLORS.navyDark + "15", border: `1px solid ${COLORS.blueLight}`, borderRadius: 10, padding: 16, marginTop: 16, fontSize: 14, color: COLORS.navy, lineHeight: 1.7 }}>
+            <strong>What happens next?</strong><br/>
+            We'll assign one of our team members to your estimate and contact you to confirm. They'll assess your home and provide your custom quote — free, no obligation.
+          </div>
+        )}
+        <p style={{ color: COLORS.gray, fontSize: 14, marginTop: 12 }}>A confirmation email has been sent to {form.email}</p>
         {form.extras.includes("silver") && (
           <div style={{ background: COLORS.gold + "33", borderRadius: 8, padding: 14, marginTop: 16, fontSize: 14 }}>
-            📞 We'll contact you soon with a quote for silver cleaning.
+            📞 We'll also contact you soon with a quote for silver cleaning.
           </div>
         )}
         <button onClick={() => { setSubmitted(false); setStep(1); setForm({ name:"",phone:"",email:"",address:"",city:"",notes:"",homeSize:"",crew:2,isFirst:true,recurringFreq:"none",extras:[],date:null,slot:null }); }} style={{ ...css.outlineBtn, marginTop: 24 }}>
-          Book Another
+          {form.isFirst ? "Schedule Another" : "Book Another"}
         </button>
       </div>
     );
@@ -832,15 +923,12 @@ function BookingForm({ bookings, onBook }) {
           {/* FIRST CLEANING */}
           {form.isFirst && (
             <>
-              <div style={css.formGroup}>
-                <label style={css.label}>Crew Size</label>
-                <div style={{ display: "flex", gap: 12 }}>
-                  {[2, 3].map(n => (
-                    <button key={n} onClick={() => set("crew", n)} style={{ flex: 1, padding: "12px 0", borderRadius: 8, border: `2px solid ${form.crew === n ? COLORS.blue : "#E5E7EB"}`, background: form.crew === n ? COLORS.blue + "15" : COLORS.white, color: form.crew === n ? COLORS.blue : COLORS.gray, cursor: "pointer", fontFamily: "inherit" }}>
-                      <div style={{ fontWeight: "bold", fontSize: 16 }}>{n} People</div>
-                      <div style={{ fontSize: 13 }}>${n === 2 ? 75 : 130}/hr</div>
-                    </button>
-                  ))}
+              {/* Free Estimate Hero Banner */}
+              <div style={{ background: `linear-gradient(135deg, ${COLORS.navyDark}, ${COLORS.blue})`, borderRadius: 12, padding: "20px 20px", marginBottom: 20, textAlign: "center" }}>
+                <div style={{ fontSize: 24, marginBottom: 6 }}>✨</div>
+                <div style={{ color: COLORS.white, fontFamily: "'Georgia', serif", fontSize: 18, fontWeight: "bold", marginBottom: 4 }}>Schedule Your Free Estimate!</div>
+                <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, lineHeight: 1.6 }}>
+                  Pick a date &amp; time and one of our team members will come assess your home and provide a custom quote — completely free, no obligation.
                 </div>
               </div>
 
@@ -851,7 +939,11 @@ function BookingForm({ bookings, onBook }) {
                   • Full deep clean of all rooms<br/>
                   • Fridge (inside &amp; out)<br/>
                   • Oven cleaning<br/>
+                  • Crew size determined based on your home<br/>
                   • All standard cleaning tasks
+                </div>
+                <div style={{ marginTop: 8, fontSize: 12, color: COLORS.gray }}>
+                  Crew of 2 @ $75/hr &nbsp;|&nbsp; Crew of 3 @ $130/hr — quoted after estimate visit
                 </div>
               </div>
 
@@ -868,13 +960,13 @@ function BookingForm({ bookings, onBook }) {
                 </div>
               </div>
 
-              {/* No price shown — free estimate */}
+              {/* Free estimate box */}
               <div style={{ background: COLORS.navy, borderRadius: 10, padding: "18px 20px", textAlign: "center", marginBottom: 16 }}>
                 <div style={{ fontSize: 13, color: COLORS.blueLight, marginBottom: 6 }}>
-                  {form.crew === 2 ? "2-person crew · $75/hr" : "3-person crew · $130/hr"} · Fridge &amp; Oven included
+                  Fridge &amp; Oven included · Crew size &amp; total determined at estimate
                 </div>
                 <div style={{ fontSize: 28, fontWeight: "bold", color: COLORS.green }}>Free Estimate</div>
-                <div style={{ fontSize: 13, color: "#AAA", marginTop: 6 }}>We'll contact you with your exact quote before the appointment.</div>
+                <div style={{ fontSize: 13, color: "#AAA", marginTop: 6 }}>We'll contact you to confirm and provide your custom quote.</div>
               </div>
             </>
           )}
@@ -939,14 +1031,20 @@ function BookingForm({ bookings, onBook }) {
       {/* Step 4: Review */}
       {step === 4 && (
         <div>
-          <div style={css.sectionTitle}>Review Your Booking</div>
+          <div style={css.sectionTitle}>{form.isFirst ? "Review Your Free Estimate Request" : "Review Your Booking"}</div>
+          {form.isFirst && (
+            <div style={{ background: `linear-gradient(135deg, ${COLORS.navyDark}, ${COLORS.blue})`, borderRadius: 10, padding: "14px 18px", marginBottom: 20, textAlign: "center" }}>
+              <div style={{ color: COLORS.white, fontWeight: "bold", fontSize: 16 }}>✨ Free Estimate Appointment</div>
+              <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 4 }}>A team member will be assigned and contact you to confirm.</div>
+            </div>
+          )}
           <div style={{ display: "grid", gap: 10, marginBottom: 24 }}>
             {[
               ["Name", form.name], ["Phone", form.phone], ["Email", form.email],
               ["Address", form.address], ["Home Size", form.homeSize],
-              ["Crew", form.isFirst ? `${form.crew} people (first cleaning)` : `Returning – ${form.recurringFreq}`],
+              !form.isFirst && ["Service", `Recurring – ${form.recurringFreq}`],
               ["Date", form.date], ["Time", form.slot],
-              ["Add-ons", form.extras.length ? form.extras.join(", ") : "None"],
+              form.extras.length > 0 && ["Add-ons", form.extras.join(", ")],
               form.notes && ["Notes", form.notes],
             ].filter(Boolean).map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #F3F4F6", fontSize: 14 }}>
@@ -955,8 +1053,15 @@ function BookingForm({ bookings, onBook }) {
               </div>
             ))}
           </div>
-          <PricingEstimate homeSize={form.homeSize} crew={form.crew} isFirst={form.isFirst} extras={form.extras} recurringFreq={form.recurringFreq} />
-          <div style={{ fontSize: 13, color: COLORS.gray, marginTop: 12 }}>By booking you agree to our cancellation policy: 24h notice required for rescheduling.</div>
+          {form.isFirst ? (
+            <div style={{ background: COLORS.navy, borderRadius: 10, padding: "16px 20px", textAlign: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 26, fontWeight: "bold", color: COLORS.green }}>Free Estimate</div>
+              <div style={{ fontSize: 13, color: "#AAA", marginTop: 4 }}>Crew size &amp; total quoted after our visit. Fridge &amp; oven included in first cleaning.</div>
+            </div>
+          ) : (
+            <PricingEstimate homeSize={form.homeSize} crew={form.crew} isFirst={form.isFirst} extras={form.extras} recurringFreq={form.recurringFreq} />
+          )}
+          <div style={{ fontSize: 13, color: COLORS.gray, marginTop: 12 }}>By submitting you agree to our cancellation policy: 24h notice required for rescheduling.</div>
         </div>
       )}
 
@@ -965,7 +1070,7 @@ function BookingForm({ bookings, onBook }) {
         {step > 1 ? <button onClick={() => setStep(s => s-1)} style={css.outlineBtn}>← Back</button> : <div />}
         {step < 4
           ? <button onClick={() => setStep(s => s+1)} disabled={!canNext()} style={{ ...css.tealBtn, opacity: canNext() ? 1 : 0.4 }}>Next →</button>
-          : <button onClick={submit} disabled={sending} style={{ ...css.tealBtn, opacity: sending ? 0.7 : 1 }}>{sending ? "Sending..." : "Confirm Booking ✓"}</button>
+          : <button onClick={submit} disabled={sending} style={{ ...css.tealBtn, opacity: sending ? 0.7 : 1 }}>{sending ? "Sending..." : form.isFirst ? "Schedule Free Estimate ✓" : "Confirm Booking ✓"}</button>
         }
       </div>
     </div>
@@ -1141,6 +1246,10 @@ export default function App() {
     setPage("home");
   }
 
+  function handleAssign(bookingId, employeeId) {
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, assignedTo: employeeId } : b));
+  }
+
   // Admin dashboard view
   if (page === "employee" && isAdmin) {
     return (
@@ -1149,7 +1258,7 @@ export default function App() {
           <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 40, objectFit: "contain" }} />
           <div style={{ color: COLORS.gold, fontSize: 13, fontWeight: "bold" }}>🔐 Admin</div>
         </header>
-        <AdminDashboard onLogout={handleLogout} />
+        <AdminDashboard onLogout={handleLogout} bookings={bookings} onAssign={handleAssign} />
         {toast && <div style={css.toast}>{toast}</div>}
       </div>
     );
