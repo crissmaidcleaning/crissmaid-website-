@@ -716,35 +716,23 @@ const EMAILJS_BUSINESS_TEMPLATE = "template_3xsrgaj";
 
 async function sendEmails(booking) {
   try {
-    const sizeObj = HOME_SIZES.find(h => h.label === booking.homeSize);
-    const hours = booking.crew === 2 ? sizeObj?.crew2h : sizeObj?.crew3h;
-    const rate = booking.crew === 2 ? 75 : 130;
-    const basePrice = booking.isFirst ? Math.round((hours || 0) * rate) : "Flat rate";
-    const extrasTotal = (booking.extras || []).reduce((sum, eid) => {
-      const ex = EXTRAS.find(e => e.id === eid);
-      return ex && ex.price ? sum + ex.price : sum;
-    }, 0);
-    const totalPrice = typeof basePrice === "number" ? `$${basePrice + extrasTotal}` : basePrice;
-    const extrasText = booking.extras.length
-      ? booking.extras.map(eid => EXTRAS.find(e => e.id === eid)?.label).join(", ")
+    // Build extras text
+    const allExtras = [...EXTRAS_FIRST, ...EXTRAS_RECURRING];
+    const extrasText = booking.extras && booking.extras.length
+      ? booking.extras.map(eid => allExtras.find(e => e.id === eid)?.label).filter(Boolean).join(", ")
       : "None";
 
-    const templateParams = {
-      customer_name: booking.name,
-      customer_email: booking.email,
-      customer_phone: booking.phone,
-      date: booking.date,
-      time: booking.slot,
-      address: booking.address,
-      home_size: booking.homeSize,
-      crew: booking.crew,
-      extras: extrasText,
-      price: totalPrice,
-      service_type: booking.isFirst ? "First Cleaning" : `Recurring (${booking.recurringFreq})`,
-      notes: booking.notes || "None",
-    };
+    const serviceType = booking.isFirst
+      ? "Free Estimate — First Cleaning"
+      : `Recurring (${booking.recurringFreq})`;
 
-    // Load EmailJS dynamically
+    // Recurring price for business notification only
+    const recurObj = RECURRING_PRICES.find(r => r.label === booking.homeSize);
+    const recurringPrice = !booking.isFirst && recurObj
+      ? `$${recurObj[booking.recurringFreq] || "TBD"} flat rate`
+      : "Free Estimate — to be quoted";
+
+    // Load EmailJS if not already loaded
     if (!window.emailjs) {
       await new Promise((resolve, reject) => {
         const script = document.createElement("script");
@@ -753,26 +741,49 @@ async function sendEmails(booking) {
         script.onerror = reject;
         document.head.appendChild(script);
       });
-      window.emailjs.init(EMAILJS_PUBLIC_KEY);
     }
 
-    // Send customer confirmation
+    // Always init (safe to call multiple times)
+    window.emailjs.init(EMAILJS_PUBLIC_KEY);
+
+    // ── Customer email — NO price shown ──────────────────────────────
     await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_CUSTOMER_TEMPLATE, {
-      ...templateParams,
       to_email: booking.email,
       to_name: booking.name,
+      customer_name: booking.name,
+      customer_email: booking.email,
+      customer_phone: booking.phone,
+      date: booking.date,
+      time: booking.slot,
+      address: booking.address,
+      home_size: booking.homeSize,
+      service_type: serviceType,
+      extras: extrasText,
+      notes: booking.notes || "None",
+      // No price field sent to customer template
     });
 
-    // Send business notification
+    // ── Business notification — full details ─────────────────────────
     await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_BUSINESS_TEMPLATE, {
-      ...templateParams,
       to_email: "crissmaidcleaning@gmail.com",
       to_name: "Criss Maid Cleaning",
+      customer_name: booking.name,
+      customer_email: booking.email,
+      customer_phone: booking.phone,
+      date: booking.date,
+      time: booking.slot,
+      address: booking.address,
+      home_size: booking.homeSize,
+      service_type: serviceType,
+      extras: extrasText,
+      price: recurringPrice,
+      notes: booking.notes || "None",
     });
 
-    console.log("Emails sent successfully!");
+    console.log("✅ Emails sent successfully!");
   } catch (err) {
-    console.error("Email error:", err);
+    console.error("❌ Email error:", err);
+    // Don't block the booking — just log the error
   }
 }
 
