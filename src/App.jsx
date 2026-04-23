@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // ── Palette & helpers ──────────────────────────────────────────────────────────
 const COLORS = {
@@ -414,6 +414,167 @@ function EmployeeSchedule({ bookings, employee, onLogout }) {
   );
 }
 
+// ── Admin Calendar View ────────────────────────────────────────────────────────
+function AdminCalendarView({ bookings, employees, onAssign }) {
+  const t = today();
+  const [viewYear, setViewYear] = useState(t.y);
+  const [viewMonth, setViewMonth] = useState(t.m);
+  const [selectedB, setSelectedB] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
+  const firstDay = getFirstDay(viewYear, viewMonth);
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewYear(y => y-1); setViewMonth(11); }
+    else setViewMonth(m => m-1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewYear(y => y+1); setViewMonth(0); }
+    else setViewMonth(m => m+1);
+  }
+
+  function dayBookings(day) {
+    const dk = dateKey(viewYear, viewMonth, day);
+    return bookings.filter(b => b.date === dk).sort((a, b) => a.slot.localeCompare(b.slot));
+  }
+
+  const isToday = (day) => viewYear === t.y && viewMonth === t.m && day === t.d;
+  const isPast = (day) => new Date(viewYear, viewMonth, day) < new Date(t.y, t.m, t.d);
+  const isSun = (day) => new Date(viewYear, viewMonth, day).getDay() === 0;
+
+  const dayBooksForSelected = selectedDate ? dayBookings(selectedDate) : [];
+
+  return (
+    <div>
+      {/* Month nav */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <button onClick={prevMonth} style={{ ...css.outlineBtn, padding: "6px 16px" }}>‹</button>
+        <span style={{ fontFamily: "'Georgia', serif", fontSize: 18, fontWeight: "bold" }}>{MONTHS[viewMonth]} {viewYear}</span>
+        <button onClick={nextMonth} style={{ ...css.outlineBtn, padding: "6px 16px" }}>›</button>
+      </div>
+
+      {/* Day labels */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 8 }}>
+        {DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: "bold", color: COLORS.gray, padding: "4px 0" }}>{d}</div>)}
+      </div>
+
+      {/* Calendar grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 20 }}>
+        {Array(firstDay).fill(null).map((_, i) => <div key={`e${i}`} />)}
+        {Array(daysInMonth).fill(null).map((_, i) => {
+          const day = i + 1;
+          const bks = dayBookings(day);
+          const estimates = bks.filter(b => b.isFirst);
+          const regular = bks.filter(b => !b.isFirst);
+          const isSelected = selectedDate === day;
+          const closed = isSun(day);
+          return (
+            <div
+              key={day}
+              onClick={() => !closed && setSelectedDate(isSelected ? null : day)}
+              style={{
+                borderRadius: 8, padding: "6px 4px", textAlign: "center",
+                cursor: closed ? "not-allowed" : "pointer",
+                background: isSelected ? COLORS.navy : isToday(day) ? COLORS.navyDark : COLORS.white,
+                color: isSelected || isToday(day) ? COLORS.white : isPast(day) || closed ? "#CCC" : COLORS.navy,
+                border: `2px solid ${isSelected ? COLORS.navy : "transparent"}`,
+                minHeight: 52, position: "relative",
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: isToday(day) ? "bold" : "normal" }}>{day}</div>
+              <div style={{ display: "flex", justifyContent: "center", gap: 2, marginTop: 3, flexWrap: "wrap" }}>
+                {estimates.map((_, di) => <div key={`e${di}`} style={{ width: 6, height: 6, borderRadius: "50%", background: isSelected ? COLORS.greenLight : COLORS.green }} />)}
+                {regular.map((_, di) => <div key={`r${di}`} style={{ width: 6, height: 6, borderRadius: "50%", background: isSelected ? "#AAD" : COLORS.blue }} />)}
+              </div>
+              {closed && <div style={{ fontSize: 8, color: "#CCC" }}>Closed</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Selected day bookings */}
+      {selectedDate && (
+        <div style={{ background: COLORS.lightGray, borderRadius: 10, padding: 16, marginBottom: 8 }}>
+          <div style={{ fontWeight: "bold", fontSize: 16, marginBottom: 12, color: COLORS.navy }}>
+            {MONTHS[viewMonth]} {selectedDate} — {dayBooksForSelected.length === 0 ? "No bookings" : `${dayBooksForSelected.length} booking(s)`}
+          </div>
+          {dayBooksForSelected.length === 0 && (
+            <div style={{ color: COLORS.gray, fontStyle: "italic", fontSize: 14 }}>No appointments scheduled this day.</div>
+          )}
+          {dayBooksForSelected.map(b => {
+            const assigned = employees.find(e => e.id === b.assignedTo);
+            return (
+              <div key={b.id} onClick={() => setSelectedB(b)} style={{ background: COLORS.white, borderRadius: 8, padding: "12px 16px", marginBottom: 10, cursor: "pointer", borderLeft: `4px solid ${b.isFirst ? COLORS.green : COLORS.blue}`, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: "bold" }}>{b.slot} · {b.name}</div>
+                    <div style={{ color: COLORS.gray, fontSize: 13 }}>{b.address} · {b.homeSize}</div>
+                    {assigned && <div style={{ color: COLORS.green, fontSize: 12, marginTop: 2 }}>👤 {assigned.name}</div>}
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    {b.isFirst && <span style={{ background: COLORS.green + "20", color: COLORS.green, border: `1px solid ${COLORS.green}`, borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: "bold" }}>Free Estimate</span>}
+                    <span style={{ color: COLORS.blue, fontSize: 12 }}>View →</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Booking detail modal */}
+      {selectedB && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }} onClick={() => setSelectedB(null)}>
+          <div style={{ background: COLORS.white, borderRadius: 14, padding: 28, maxWidth: 460, width: "92%", boxShadow: "0 8px 40px rgba(0,0,0,0.2)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontFamily: "'Georgia', serif", margin: 0, color: COLORS.navy }}>
+                {selectedB.isFirst ? "✨ Free Estimate" : "📋 Booking"} Details
+              </h3>
+              <button onClick={() => setSelectedB(null)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: COLORS.gray }}>✕</button>
+            </div>
+            <div style={{ display: "grid", gap: 10, fontSize: 14, marginBottom: 20 }}>
+              {[
+                ["Client", selectedB.name],
+                ["Phone", selectedB.phone],
+                ["Email", selectedB.email],
+                ["Date & Time", `${selectedB.date} @ ${selectedB.slot}`],
+                ["Address", selectedB.address],
+                ["Home Size", selectedB.homeSize],
+                ["Service", selectedB.isFirst ? "Free Estimate — First Cleaning" : `Recurring (${selectedB.recurringFreq})`],
+                selectedB.extras?.length > 0 && ["Add-ons", selectedB.extras.join(", ")],
+                selectedB.notes && ["Notes", selectedB.notes],
+              ].filter(Boolean).map(([k, v]) => (
+                <div key={k} style={{ display: "flex", gap: 12, padding: "6px 0", borderBottom: "1px solid #F3F4F6" }}>
+                  <span style={{ color: COLORS.gray, minWidth: 90 }}>{k}</span>
+                  <span style={{ fontWeight: "bold", flex: 1 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+            {/* Assign employee */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={css.label}>Assign to Employee</label>
+              <select
+                style={css.select}
+                value={selectedB.assignedTo || ""}
+                onChange={e => {
+                  const empId = e.target.value ? Number(e.target.value) : null;
+                  onAssign(selectedB.id, empId);
+                  setSelectedB(prev => ({ ...prev, assignedTo: empId }));
+                }}
+              >
+                <option value="">— Unassigned —</option>
+                {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+              </select>
+            </div>
+            <button onClick={() => setSelectedB(null)} style={{ ...css.tealBtn, width: "100%" }}>Close</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Admin Dashboard ────────────────────────────────────────────────────────────
 function AdminDashboard({ onLogout, bookings, onAssign }) {
   const [employees, setEmployees] = useState(loadEmployees());
@@ -486,6 +647,9 @@ function AdminDashboard({ onLogout, bookings, onAssign }) {
         <button style={tabStyle(activeTab === "estimates")} onClick={() => setActiveTab("estimates")}>
           ✨ Free Estimates {freeEstimates.length > 0 && <span style={{ background: COLORS.blue, color: "#fff", borderRadius: 10, padding: "1px 7px", fontSize: 11, marginLeft: 4 }}>{freeEstimates.length}</span>}
         </button>
+        <button style={tabStyle(activeTab === "calendar")} onClick={() => setActiveTab("calendar")}>
+          📅 Calendar
+        </button>
         <button style={tabStyle(activeTab === "employees")} onClick={() => setActiveTab("employees")}>
           👥 Employees
         </button>
@@ -536,6 +700,24 @@ function AdminDashboard({ onLogout, bookings, onAssign }) {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* CALENDAR TAB */}
+      {activeTab === "calendar" && (
+        <div>
+          <div style={css.card}>
+            <div style={css.sectionTitle}>📅 Full Schedule & Availability</div>
+            <div style={{ color: COLORS.gray, fontSize: 14, marginBottom: 20 }}>
+              Mon–Fri 8am–6pm. Weekends by quote. Sundays closed. Click a booking to view details.
+            </div>
+            <AdminCalendarView bookings={bookings} employees={employees} onAssign={onAssign} />
+            <div style={{ marginTop: 20, display: "flex", gap: 20, flexWrap: "wrap", fontSize: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: COLORS.green }} /> Free Estimate</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: COLORS.blue }} /> Regular Booking</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: COLORS.navy }} /> Today</div>
+            </div>
           </div>
         </div>
       )}
@@ -787,6 +969,116 @@ async function sendEmails(booking) {
   }
 }
 
+// ── Address Autocomplete ────────────────────────────────────────────────────────
+function AddressAutocomplete({ value, onChange }) {
+  const inputRef = useRef(null);
+  const [loaded, setLoaded] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [inputValue, setInputValue] = useState(value || "");
+  const autocompleteService = useRef(null);
+  const sessionToken = useRef(null);
+
+  // Load Google Places API
+  useEffect(() => {
+    if (window.google && window.google.maps && window.google.maps.places) {
+      setLoaded(true);
+      return;
+    }
+    // Use a free approach without API key — browser native autocomplete fallback
+    setLoaded(false);
+  }, []);
+
+  function handleInput(e) {
+    const val = e.target.value;
+    setInputValue(val);
+    onChange(val);
+
+    if (!val || val.length < 3) { setSuggestions([]); setShowSuggestions(false); return; }
+
+    // Use Google Places if available, otherwise use Nominatim (free, no key needed)
+    if (window.google?.maps?.places) {
+      if (!autocompleteService.current) {
+        autocompleteService.current = new window.google.maps.places.AutocompleteService();
+      }
+      if (!sessionToken.current) {
+        sessionToken.current = new window.google.maps.places.AutocompleteSessionToken();
+      }
+      autocompleteService.current.getPlacePredictions(
+        { input: val, componentRestrictions: { country: "us" }, sessionToken: sessionToken.current },
+        (predictions, status) => {
+          if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+            setSuggestions(predictions.map(p => p.description));
+            setShowSuggestions(true);
+          }
+        }
+      );
+    } else {
+      // Free fallback: Nominatim OpenStreetMap geocoder
+      clearTimeout(window._addrTimeout);
+      window._addrTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=5&q=${encodeURIComponent(val)}`, {
+            headers: { "Accept-Language": "en" }
+          });
+          const data = await res.json();
+          if (data && data.length > 0) {
+            setSuggestions(data.map(d => d.display_name));
+            setShowSuggestions(true);
+          }
+        } catch { setSuggestions([]); }
+      }, 350);
+    }
+  }
+
+  function selectSuggestion(s) {
+    setInputValue(s);
+    onChange(s);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        ref={inputRef}
+        style={css.input}
+        value={inputValue}
+        onChange={handleInput}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+        placeholder="Start typing your address..."
+        autoComplete="off"
+      />
+      {showSuggestions && suggestions.length > 0 && (
+        <div style={{
+          position: "absolute", top: "100%", left: 0, right: 0, zIndex: 999,
+          background: COLORS.white, border: `1px solid #C5D5EC`,
+          borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+          maxHeight: 220, overflowY: "auto", marginTop: 2,
+        }}>
+          {suggestions.map((s, i) => (
+            <div
+              key={i}
+              onMouseDown={() => selectSuggestion(s)}
+              style={{
+                padding: "10px 14px", cursor: "pointer", fontSize: 13,
+                borderBottom: i < suggestions.length - 1 ? "1px solid #F3F4F6" : "none",
+                display: "flex", alignItems: "center", gap: 8,
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = COLORS.lightGray}
+              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+            >
+              <span style={{ color: COLORS.blue, fontSize: 14 }}>📍</span>
+              <span>{s}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Booking Form ───────────────────────────────────────────────────────────────
 function BookingForm({ bookings, onBook }) {
   const [step, setStep] = useState(1);
@@ -890,7 +1182,25 @@ function BookingForm({ bookings, onBook }) {
             </div>
             <div style={css.formGroup}>
               <label style={css.label}>Phone *</label>
-              <input style={css.input} value={form.phone} onChange={e => set("phone", e.target.value)} placeholder="555-123-4567" />
+              <input
+                style={css.input}
+                value={form.phone}
+                onChange={e => {
+                  // Only allow digits, spaces, dashes, parentheses
+                  const cleaned = e.target.value.replace(/[^\d\s\-().]/g, "");
+                  set("phone", cleaned);
+                }}
+                onKeyDown={e => {
+                  // Block any non-numeric key except control keys
+                  const allowed = ["Backspace","Delete","Tab","ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End","Enter"];
+                  if (allowed.includes(e.key)) return;
+                  if (!/[\d\s\-().]/.test(e.key)) e.preventDefault();
+                }}
+                placeholder="(240) 413-4313"
+                type="tel"
+                inputMode="numeric"
+                maxLength={15}
+              />
             </div>
           </div>
           <div style={css.formGroup}>
@@ -899,7 +1209,7 @@ function BookingForm({ bookings, onBook }) {
           </div>
           <div style={css.formGroup}>
             <label style={css.label}>Service Address *</label>
-            <input style={css.input} value={form.address} onChange={e => set("address", e.target.value)} placeholder="123 Main St, City, State" />
+            <AddressAutocomplete value={form.address} onChange={v => set("address", v)} />
           </div>
           <div style={css.formGroup}>
             <label style={css.label}>Special Instructions / Notes</label>
@@ -1212,6 +1522,147 @@ function PricingPage() {
   );
 }
 
+// ── About Page ─────────────────────────────────────────────────────────────────
+function AboutPage({ onBook }) {
+  return (
+    <div>
+      {/* Hero banner */}
+      <div style={{ background: `linear-gradient(135deg, ${COLORS.navyDark} 0%, ${COLORS.navy} 100%)`, padding: "48px 24px", textAlign: "center" }}>
+        <div style={{ fontSize: 52, marginBottom: 12 }}>👩‍👦</div>
+        <h1 style={{ fontFamily: "'Georgia', serif", color: COLORS.white, fontSize: 28, margin: "0 0 10px" }}>About Criss Maid Cleaning</h1>
+        <p style={{ color: "rgba(255,255,255,0.8)", fontSize: 16, maxWidth: 500, margin: "0 auto 16px" }}>
+          A family business built on trust, dedication, and over 30 years of experience.
+        </p>
+        <div style={{ display: "inline-flex", gap: 10, flexWrap: "wrap", justifyContent: "center" }}>
+          <span style={{ background: "rgba(255,255,255,0.15)", color: COLORS.white, borderRadius: 20, padding: "6px 16px", fontSize: 13, fontWeight: "bold" }}>📍 Maryland</span>
+          <span style={{ background: "rgba(255,255,255,0.15)", color: COLORS.white, borderRadius: 20, padding: "6px 16px", fontSize: 13, fontWeight: "bold" }}>📍 Washington D.C.</span>
+        </div>
+      </div>
+
+      <div style={css.section}>
+
+        {/* Our Story */}
+        <div style={css.card}>
+          <div style={css.sectionTitle}>Our Story</div>
+          <div style={{ fontSize: 15, color: "#444", lineHeight: 1.9 }}>
+            <p style={{ marginBottom: 16 }}>
+              Criss Maid Cleaning was born from a simple belief: every home deserves to be treated with care, attention, and respect. What started as a passion became a calling — and today it's a family legacy.
+            </p>
+            <p style={{ marginBottom: 16 }}>
+              At the heart of our business is <strong>Cristela</strong>, a mother with over <strong>30 years of professional cleaning experience</strong>. For three decades, she has walked into homes and transformed them — not just cleaning surfaces, but bringing a sense of comfort and pride back to the spaces families live in.
+            </p>
+            <p>
+              Joining her is her son Alexi, who brings the business side and scheduling together so that Cristela can focus on what she does best: delivering an exceptional clean every single time. Together, they built Criss Maid Cleaning to offer the warmth of a family business with the professionalism of an expert service — proudly serving homes across <strong>Maryland and Washington D.C.</strong>
+            </p>
+          </div>
+        </div>
+
+        {/* Meet the Team */}
+        <div style={css.card}>
+          <div style={css.sectionTitle}>Meet the Team</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 24 }}>
+
+            {/* Cristela */}
+            <div style={{ textAlign: "center", padding: "20px 16px", borderRadius: 12, background: COLORS.lightGray }}>
+              <div style={{ width: 100, height: 100, borderRadius: "50%", background: `linear-gradient(135deg, ${COLORS.navyDark}, ${COLORS.blue})`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 40, border: `4px solid ${COLORS.white}`, boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }}>
+                👩
+              </div>
+              <h3 style={{ fontFamily: "'Georgia', serif", fontSize: 20, color: COLORS.navy, margin: "0 0 4px" }}>Cristela</h3>
+              <div style={{ color: COLORS.blue, fontSize: 13, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>Founder & Lead Cleaner</div>
+              <div style={{ color: COLORS.gray, fontSize: 14, lineHeight: 1.7 }}>
+                With over <strong>30 years of experience</strong>, Cristela is the heart and soul of Criss Maid Cleaning. Her attention to detail, reliability, and genuine care for every home she enters is what sets us apart. She treats your home like her own.
+              </div>
+              <div style={{ marginTop: 14, display: "flex", justifyContent: "center", gap: 8 }}>
+                <span style={{ background: COLORS.blue + "15", color: COLORS.blue, borderRadius: 20, padding: "4px 12px", fontSize: 12, fontWeight: "bold" }}>30+ Years Experience</span>
+              </div>
+            </div>
+
+            {/* Son — placeholder name */}
+            <div style={{ textAlign: "center", padding: "20px 16px", borderRadius: 12, background: COLORS.lightGray }}>
+              <div style={{ width: 100, height: 100, borderRadius: "50%", overflow: "hidden", margin: "0 auto 16px", border: `4px solid ${COLORS.white}`, boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>
+                <img src="/alexi.jpeg" alt="Alexi" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
+              </div>
+              <h3 style={{ fontFamily: "'Georgia', serif", fontSize: 20, color: COLORS.navy, margin: "0 0 4px" }}>Alexi</h3>
+              <div style={{ color: COLORS.green, fontSize: 13, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>Co-Founder & Operations</div>
+              <div style={{ color: COLORS.gray, fontSize: 14, lineHeight: 1.7 }}>
+                Handling scheduling, customer relations, and operations, Alexi ensures every client gets a seamless experience from first booking to final walkthrough. Family-run means you're always talking to someone who cares.
+              </div>
+              <div style={{ marginTop: 14, display: "flex", justifyContent: "center", gap: 8 }}>
+                <span style={{ background: COLORS.green + "15", color: COLORS.green, borderRadius: 20, padding: "4px 12px", fontSize: 12, fontWeight: "bold" }}>Family Owned</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Why Choose Us */}
+        <div style={css.card}>
+          <div style={css.sectionTitle}>Why Choose Criss Maid Cleaning?</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16 }}>
+            {[
+              { icon: "🏆", title: "30+ Years Experience", desc: "Cristela has been perfecting her craft for over three decades. Experience you can see in every corner." },
+              { icon: "👨‍👩‍👦", title: "Family Owned", desc: "We're not a franchise. You're hiring real people who take pride in every home they clean." },
+              { icon: "✅", title: "First Clean Guarantee", desc: "Your first cleaning includes everything — fridge, oven, full deep clean. We set the standard from day one." },
+              { icon: "💬", title: "Always Reachable", desc: "Call or text us directly. No call centers, no bots. Just Cristela and her son ready to help." },
+              { icon: "🔒", title: "Trusted & Reliable", desc: "We show up when we say we will. Your schedule matters to us as much as it matters to you." },
+              { icon: "✨", title: "Attention to Detail", desc: "No corner is overlooked. We clean the way we'd want our own home cleaned — thoroughly and with care." },
+            ].map(f => (
+              <div key={f.title} style={{ padding: "18px 16px", borderRadius: 10, border: `1px solid #E5E7EB`, background: COLORS.white }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>{f.icon}</div>
+                <div style={{ fontWeight: "bold", fontSize: 14, color: COLORS.navy, marginBottom: 6 }}>{f.title}</div>
+                <div style={{ color: COLORS.gray, fontSize: 13, lineHeight: 1.6 }}>{f.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Service Area */}
+        <div style={css.card}>
+          <div style={css.sectionTitle}>📍 Areas We Serve</div>
+          <div style={{ fontSize: 15, color: COLORS.gray, marginBottom: 20 }}>
+            Criss Maid Cleaning is proud to serve homeowners and families across:
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px,1fr))", gap: 16 }}>
+            <div style={{ background: COLORS.navyDark, borderRadius: 12, padding: "24px 20px", textAlign: "center", color: COLORS.white }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🏛️</div>
+              <div style={{ fontFamily: "'Georgia', serif", fontSize: 18, fontWeight: "bold", marginBottom: 6 }}>Washington D.C.</div>
+              <div style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>The nation's capital and surrounding areas</div>
+            </div>
+            <div style={{ background: COLORS.blue, borderRadius: 12, padding: "24px 20px", textAlign: "center", color: COLORS.white }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>🌿</div>
+              <div style={{ fontFamily: "'Georgia', serif", fontSize: 18, fontWeight: "bold", marginBottom: 6 }}>Maryland</div>
+              <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13 }}>Residential homes throughout the state</div>
+            </div>
+          </div>
+          <div style={{ marginTop: 16, padding: "12px 16px", background: COLORS.lightGray, borderRadius: 8, fontSize: 13, color: COLORS.gray }}>
+            📞 Not sure if we serve your area? Give us a call at <strong>(240) 413-4313</strong> or <strong>(301) 768-1371</strong> and we'll let you know!
+          </div>
+        </div>
+
+        {/* Values */}
+        <div style={{ ...css.card, background: COLORS.navyDark, color: COLORS.white }}>
+          <div style={{ fontSize: 18, fontFamily: "'Georgia', serif", marginBottom: 16, color: COLORS.gold }}>💛 Our Values</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px,1fr))", gap: 16, textAlign: "center" }}>
+            {[["Integrity","We do what we say."],["Respect","Your home is sacred to us."],["Excellence","Good enough is never enough."],["Family","We treat clients like neighbors."]].map(([v, d]) => (
+              <div key={v}>
+                <div style={{ fontWeight: "bold", fontSize: 16, color: COLORS.gold, marginBottom: 4 }}>{v}</div>
+                <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13 }}>{d}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div style={{ textAlign: "center", padding: "20px 0 40px" }}>
+          <div style={{ fontFamily: "'Georgia', serif", fontSize: 22, color: COLORS.navy, marginBottom: 12 }}>Ready to experience the Criss Maid difference?</div>
+          <div style={{ color: COLORS.gray, fontSize: 14, marginBottom: 24 }}>Your first cleaning includes everything. Schedule your free estimate today — no obligation.</div>
+          <button onClick={onBook} style={{ ...css.heroBtn, fontSize: 16 }}>Schedule Your Free Estimate →</button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ───────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState("home");
@@ -1305,10 +1756,10 @@ export default function App() {
 
   return (
     <div style={css.app}>
-      {/* Header — nav only */}
+      {/* Header — nav only, no calendar */}
       <header style={{ ...css.header, background: COLORS.navyDark, padding: "10px 16px" }}>
         <nav style={{ ...css.nav, background: "transparent", padding: 0 }}>
-          {[["home","Home"],["book","Book Now"],["pricing","Pricing"],["calendar","Calendar"],["employee","Employee"]].map(([k,l]) => (
+          {[["home","Home"],["book","Book Now"],["pricing","Pricing"],["about","About"],["employee","Employee"]].map(([k,l]) => (
             <button key={k} onClick={() => setPage(k)} style={css.navBtn(page === k)}>{l}</button>
           ))}
         </nav>
@@ -1328,7 +1779,7 @@ export default function App() {
               {[
                 { icon: "🏠", title: "All Home Sizes", desc: "From studios to 5+ bedroom homes. First cleaning & recurring options." },
                 { icon: "👥", title: "2 or 3-Person Crews", desc: "$75/hr for 2 people, $130/hr for 3. Faster, more thorough cleaning." },
-                { icon: "📅", title: "Easy Scheduling", desc: "Book online in minutes. See real-time availability on our calendar." },
+                { icon: "📅", title: "Easy Scheduling", desc: "Book online in minutes. Schedule your free estimate today." },
                 { icon: "⭐", title: "Add-On Services", desc: "Recurring clients can add fridge & oven cleaning for $45 each. Silver cleaning quoted separately." },
               ].map(f => (
                 <div key={f.title} style={{ ...css.card, textAlign: "center", marginBottom: 0, background: COLORS.white }}>
@@ -1342,11 +1793,23 @@ export default function App() {
             <div style={{ ...css.card, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
               <div style={{ flex: 1, minWidth: 240 }}>
                 <div style={{ fontSize: 22, fontFamily: "'Georgia', serif", marginBottom: 8 }}>Ready for a spotless home?</div>
-                <div style={{ color: COLORS.gray, fontSize: 14 }}>View our live calendar and pick the time that works best for you. Bookings are confirmed instantly.</div>
+                <div style={{ color: COLORS.gray, fontSize: 14 }}>Book online in minutes. We'll reach out to confirm your appointment and provide your custom quote.</div>
               </div>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <button onClick={() => setPage("book")} style={css.tealBtn}>Book Now</button>
                 <button onClick={() => setPage("pricing")} style={css.outlineBtn}>See Pricing</button>
+              </div>
+            </div>
+
+            {/* About teaser */}
+            <div style={{ ...css.card, background: COLORS.navyDark, color: COLORS.white, display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+              <div style={{ fontSize: 52 }}>👩‍👦</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: "'Georgia', serif", fontSize: 20, marginBottom: 8, color: COLORS.white }}>A Family You Can Trust</div>
+                <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, lineHeight: 1.6 }}>
+                  Criss Maid Cleaning is a mother-and-son business built on over 30 years of experience. Cristela has dedicated her career to making homes shine — proudly serving Maryland and Washington D.C.
+                </div>
+                <button onClick={() => setPage("about")} style={{ ...css.heroBtn, marginTop: 16, padding: "10px 24px", fontSize: 14 }}>Meet the Team →</button>
               </div>
             </div>
           </div>
@@ -1362,29 +1825,14 @@ export default function App() {
 
       {page === "pricing" && <PricingPage />}
 
-      {page === "calendar" && (
-        <div style={css.section}>
-          <div style={css.card}>
-            <div style={css.sectionTitle}>Availability Calendar</div>
-            <div style={{ color: COLORS.gray, fontSize: 14, marginBottom: 20 }}>Mon–Fri 8am–6pm. Weekends available by quote — call us to arrange. Sundays closed.</div>
-            <CalendarView bookings={bookings} />
-            <div style={{ marginTop: 24, display: "flex", gap: 20, flexWrap: "wrap", fontSize: 13 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: COLORS.blue }} /> Bookings on this day</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: COLORS.navy }} /> Today</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: "#CCC" }} /> Unavailable</div>
-            </div>
-            <div style={{ marginTop: 20 }}>
-              <button onClick={() => setPage("book")} style={css.tealBtn}>Book a Time Slot →</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {page === "about" && <AboutPage onBook={() => setPage("book")} />}
 
       {/* Footer */}
       <footer style={{ background: COLORS.navy, color: "#AAA", textAlign: "center", padding: "32px 24px", fontSize: 13 }}>
         <div style={{ color: COLORS.white, fontFamily: "'Georgia', serif", fontSize: 18, marginBottom: 8 }}>Criss Maid Cleaning</div>
         <div>📱 (240) 413-4313 &nbsp;·&nbsp; 📱 (301) 768-1371 &nbsp;·&nbsp; ✉️ crissmaidcleaning@gmail.com</div>
         <div style={{ marginTop: 8 }}>Mon–Fri · 8:00 AM – 6:00 PM &nbsp;|&nbsp; Weekends: Call for Quote</div>
+        <div style={{ marginTop: 8, color: COLORS.blueLight }}>📍 Serving Maryland & Washington D.C.</div>
         <div style={{ marginTop: 16, color: "#555", fontSize: 12 }}>© 2026 Criss Maid Cleaning. All rights reserved.</div>
       </footer>
 
