@@ -1564,8 +1564,8 @@ function AboutPage({ onBook }) {
 
             {/* Cristela */}
             <div style={{ textAlign: "center", padding: "20px 16px", borderRadius: 12, background: COLORS.lightGray }}>
-              <div style={{ width: 100, height: 100, borderRadius: "50%", background: `linear-gradient(135deg, ${COLORS.navyDark}, ${COLORS.blue})`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: 40, border: `4px solid ${COLORS.white}`, boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }}>
-                👩
+              <div style={{ width: 100, height: 100, borderRadius: "50%", overflow: "hidden", margin: "0 auto 16px", border: `4px solid ${COLORS.white}`, boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>
+                <img src="/cristela.jpg" alt="Cristela" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
               </div>
               <h3 style={{ fontFamily: "'Georgia', serif", fontSize: 20, color: COLORS.navy, margin: "0 0 4px" }}>Cristela</h3>
               <div style={{ color: COLORS.blue, fontSize: 13, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>Founder & Lead Cleaner</div>
@@ -1580,7 +1580,7 @@ function AboutPage({ onBook }) {
             {/* Son — placeholder name */}
             <div style={{ textAlign: "center", padding: "20px 16px", borderRadius: 12, background: COLORS.lightGray }}>
               <div style={{ width: 100, height: 100, borderRadius: "50%", overflow: "hidden", margin: "0 auto 16px", border: `4px solid ${COLORS.white}`, boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>
-                <img src="/alexi.jpeg" alt="Alexi" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
+                <img src="/alexi.jpg" alt="Alexi" style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "center top" }} />
               </div>
               <h3 style={{ fontFamily: "'Georgia', serif", fontSize: 20, color: COLORS.navy, margin: "0 0 4px" }}>Alexi</h3>
               <div style={{ color: COLORS.green, fontSize: 13, fontWeight: "bold", letterSpacing: 1, textTransform: "uppercase", marginBottom: 12 }}>Co-Founder & Operations</div>
