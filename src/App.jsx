@@ -145,7 +145,7 @@ function CalendarView({ bookings, onSelectSlot, selectedDate, selectedSlot }) {
   }
   function isWeekend(day) {
     const dow = new Date(viewYear, viewMonth, day).getDay();
-    return dow === 0; // Sundays fully closed; Saturdays available by quote
+    return dow === 0 || dow === 6; // Closed Sat & Sun for customers
   }
 
   const [hovDay, setHovDay] = useState(null);
@@ -243,7 +243,7 @@ function CalendarView({ bookings, onSelectSlot, selectedDate, selectedSlot }) {
               );
             })}
           </div>
-          <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 8 }}>* 30-min travel buffer included between appointments</div>
+          <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 8 }}>* Mon–Fri only · 30-min travel buffer between appointments · Weekends closed (call for quote)</div>
         </div>
       )}
     </div>
@@ -421,12 +421,15 @@ function EmployeeSchedule({ bookings, employee, onLogout }) {
 }
 
 // ── Admin Calendar View ────────────────────────────────────────────────────────
-function AdminCalendarView({ bookings, employees, onAssign }) {
+function AdminCalendarView({ bookings, employees, onAssign, onAdminBook }) {
   const t = today();
   const [viewYear, setViewYear] = useState(t.y);
   const [viewMonth, setViewMonth] = useState(t.m);
   const [selectedB, setSelectedB] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addSlot, setAddSlot] = useState("");
+  const [addForm, setAddForm] = useState({ name: "", phone: "", email: "", address: "", homeSize: "", notes: "", isFirst: true, recurringFreq: "none" });
 
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
   const firstDay = getFirstDay(viewYear, viewMonth);
@@ -447,9 +450,37 @@ function AdminCalendarView({ bookings, employees, onAssign }) {
 
   const isToday = (day) => viewYear === t.y && viewMonth === t.m && day === t.d;
   const isPast = (day) => new Date(viewYear, viewMonth, day) < new Date(t.y, t.m, t.d);
-  const isSun = (day) => new Date(viewYear, viewMonth, day).getDay() === 0;
+  // Admin can book ANY day — no weekend restriction
+  const isSun = (day) => false;
 
   const dayBooksForSelected = selectedDate ? dayBookings(selectedDate) : [];
+  const selectedDk = selectedDate ? dateKey(viewYear, viewMonth, selectedDate) : null;
+
+  function handleAdminBook() {
+    if (!addForm.name || !addSlot) return;
+    const booking = {
+      id: "admin_" + Date.now(),
+      date: selectedDk,
+      slot: addSlot,
+      name: addForm.name,
+      phone: addForm.phone,
+      email: addForm.email,
+      address: addForm.address,
+      homeSize: addForm.homeSize,
+      notes: addForm.notes,
+      isFirst: addForm.isFirst,
+      recurringFreq: addForm.recurringFreq,
+      extras: [],
+      estimatedHours: 2,
+      travelMins: 20,
+      status: "confirmed",
+      adminScheduled: true,
+    };
+    onAdminBook(booking);
+    setShowAddForm(false);
+    setAddForm({ name: "", phone: "", email: "", address: "", homeSize: "", notes: "", isFirst: true, recurringFreq: "none" });
+    setAddSlot("");
+  }
 
   return (
     <div>
@@ -465,48 +496,56 @@ function AdminCalendarView({ bookings, employees, onAssign }) {
         {DAYS.map(d => <div key={d} style={{ textAlign: "center", fontSize: 12, fontWeight: "bold", color: COLORS.gray, padding: "4px 0" }}>{d}</div>)}
       </div>
 
-      {/* Calendar grid */}
+      {/* Calendar grid — admin sees ALL days including weekends */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 20 }}>
         {Array(firstDay).fill(null).map((_, i) => <div key={`e${i}`} />)}
         {Array(daysInMonth).fill(null).map((_, i) => {
           const day = i + 1;
+          const dow = new Date(viewYear, viewMonth, day).getDay();
+          const isWeekend = dow === 0 || dow === 6;
           const bks = dayBookings(day);
           const estimates = bks.filter(b => b.isFirst);
           const regular = bks.filter(b => !b.isFirst);
           const isSelected = selectedDate === day;
-          const closed = isSun(day);
           return (
             <div
               key={day}
-              onClick={() => !closed && setSelectedDate(isSelected ? null : day)}
+              onClick={() => setSelectedDate(isSelected ? null : day)}
               style={{
-                borderRadius: 8, padding: "6px 4px", textAlign: "center",
-                cursor: closed ? "not-allowed" : "pointer",
-                background: isSelected ? COLORS.navy : isToday(day) ? COLORS.navyDark : COLORS.white,
-                color: isSelected || isToday(day) ? COLORS.white : isPast(day) || closed ? "#CCC" : COLORS.navy,
-                border: `2px solid ${isSelected ? COLORS.navy : "transparent"}`,
-                minHeight: 52, position: "relative",
+                borderRadius: 8, padding: "6px 4px", textAlign: "center", cursor: "pointer",
+                background: isSelected ? COLORS.navy : isToday(day) ? COLORS.navyDark : isWeekend ? "#FFF8F0" : COLORS.white,
+                color: isSelected || isToday(day) ? COLORS.white : isPast(day) ? "#CCC" : COLORS.navy,
+                border: `2px solid ${isSelected ? COLORS.navy : isWeekend ? "#F39C12" : "transparent"}`,
+                minHeight: 52,
               }}
             >
               <div style={{ fontSize: 13, fontWeight: isToday(day) ? "bold" : "normal" }}>{day}</div>
+              {isWeekend && !isSelected && <div style={{ fontSize: 8, color: "#E67E22" }}>Quote</div>}
               <div style={{ display: "flex", justifyContent: "center", gap: 2, marginTop: 3, flexWrap: "wrap" }}>
                 {estimates.map((_, di) => <div key={`e${di}`} style={{ width: 6, height: 6, borderRadius: "50%", background: isSelected ? COLORS.greenLight : COLORS.green }} />)}
                 {regular.map((_, di) => <div key={`r${di}`} style={{ width: 6, height: 6, borderRadius: "50%", background: isSelected ? "#AAD" : COLORS.blue }} />)}
               </div>
-              {closed && <div style={{ fontSize: 8, color: "#CCC" }}>Closed</div>}
             </div>
           );
         })}
       </div>
 
-      {/* Selected day bookings */}
+      {/* Selected day */}
       {selectedDate && (
         <div style={{ background: COLORS.lightGray, borderRadius: 10, padding: 16, marginBottom: 8 }}>
-          <div style={{ fontWeight: "bold", fontSize: 16, marginBottom: 12, color: COLORS.navy }}>
-            {MONTHS[viewMonth]} {selectedDate} — {dayBooksForSelected.length === 0 ? "No bookings" : `${dayBooksForSelected.length} booking(s)`}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontWeight: "bold", fontSize: 16, color: COLORS.navy }}>
+              {MONTHS[viewMonth]} {selectedDate} — {dayBooksForSelected.length === 0 ? "No bookings" : `${dayBooksForSelected.length} booking(s)`}
+              {(() => { const dow = new Date(viewYear, viewMonth, selectedDate).getDay(); return (dow === 0 || dow === 6) ? <span style={{ marginLeft: 8, background: "#F39C12", color: "#fff", borderRadius: 10, padding: "2px 8px", fontSize: 11 }}>Weekend</span> : null; })()}
+            </div>
+            <button
+              onClick={() => setShowAddForm(true)}
+              style={{ ...css.tealBtn, padding: "8px 16px", fontSize: 13 }}
+            >+ Schedule Appointment</button>
           </div>
-          {dayBooksForSelected.length === 0 && (
-            <div style={{ color: COLORS.gray, fontStyle: "italic", fontSize: 14 }}>No appointments scheduled this day.</div>
+
+          {dayBooksForSelected.length === 0 && !showAddForm && (
+            <div style={{ color: COLORS.gray, fontStyle: "italic", fontSize: 14 }}>No appointments. Click "+ Schedule Appointment" to add one.</div>
           )}
           {dayBooksForSelected.map(b => {
             const assigned = employees.find(e => e.id === b.assignedTo);
@@ -514,7 +553,7 @@ function AdminCalendarView({ bookings, employees, onAssign }) {
               <div key={b.id} onClick={() => setSelectedB(b)} style={{ background: COLORS.white, borderRadius: 8, padding: "12px 16px", marginBottom: 10, cursor: "pointer", borderLeft: `4px solid ${b.isFirst ? COLORS.green : COLORS.blue}`, boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                   <div>
-                    <div style={{ fontWeight: "bold" }}>{b.slot} · {b.name}</div>
+                    <div style={{ fontWeight: "bold" }}>{b.slot} · {b.name} {b.adminScheduled && <span style={{ fontSize: 11, color: COLORS.gray }}>· Admin</span>}</div>
                     <div style={{ color: COLORS.gray, fontSize: 13 }}>{b.address} · {b.homeSize}</div>
                     {assigned && <div style={{ color: COLORS.green, fontSize: 12, marginTop: 2 }}>👤 {assigned.name}</div>}
                   </div>
@@ -526,6 +565,52 @@ function AdminCalendarView({ bookings, employees, onAssign }) {
               </div>
             );
           })}
+
+          {/* Admin add booking form */}
+          {showAddForm && (
+            <div style={{ background: COLORS.white, borderRadius: 10, padding: 20, marginTop: 12, border: `2px solid ${COLORS.blue}` }}>
+              <div style={{ fontWeight: "bold", color: COLORS.navy, marginBottom: 16, fontSize: 15 }}>
+                📅 Schedule for {MONTHS[viewMonth]} {selectedDate}
+                {(() => { const dow = new Date(viewYear, viewMonth, selectedDate).getDay(); return (dow === 0 || dow === 6) ? <span style={{ marginLeft: 8, color: "#E67E22", fontSize: 13 }}>⚠️ Weekend — Admin only</span> : null; })()}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div><label style={css.label}>Client Name *</label><input style={css.input} value={addForm.name} onChange={e => setAddForm(f => ({...f, name: e.target.value}))} placeholder="Jane Smith" /></div>
+                <div><label style={css.label}>Phone</label><input style={css.input} value={addForm.phone} onChange={e => setAddForm(f => ({...f, phone: e.target.value.replace(/[^\d\s\-().]/g,"")}))} placeholder="(240) 000-0000" type="tel" /></div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div><label style={css.label}>Email</label><input style={css.input} value={addForm.email} onChange={e => setAddForm(f => ({...f, email: e.target.value}))} placeholder="jane@email.com" /></div>
+                <div>
+                  <label style={css.label}>Time Slot *</label>
+                  <select style={css.select} value={addSlot} onChange={e => setAddSlot(e.target.value)}>
+                    <option value="">— Select —</option>
+                    {TIME_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}><label style={css.label}>Address</label><input style={css.input} value={addForm.address} onChange={e => setAddForm(f => ({...f, address: e.target.value}))} placeholder="123 Main St" /></div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={css.label}>Home Size</label>
+                  <select style={css.select} value={addForm.homeSize} onChange={e => setAddForm(f => ({...f, homeSize: e.target.value}))}>
+                    <option value="">— Select —</option>
+                    {HOME_SIZES.map(h => <option key={h.label} value={h.label}>{h.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={css.label}>Service Type</label>
+                  <select style={css.select} value={addForm.isFirst ? "first" : "recurring"} onChange={e => setAddForm(f => ({...f, isFirst: e.target.value === "first"}))}>
+                    <option value="first">Free Estimate / First Cleaning</option>
+                    <option value="recurring">Recurring</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}><label style={css.label}>Notes</label><textarea style={{ ...css.input, height: 60, resize: "vertical" }} value={addForm.notes} onChange={e => setAddForm(f => ({...f, notes: e.target.value}))} placeholder="Any special instructions..." /></div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={handleAdminBook} disabled={!addForm.name || !addSlot} style={{ ...css.tealBtn, flex: 1, opacity: (!addForm.name || !addSlot) ? 0.4 : 1 }}>Save Appointment</button>
+                <button onClick={() => setShowAddForm(false)} style={css.outlineBtn}>Cancel</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -557,7 +642,6 @@ function AdminCalendarView({ bookings, employees, onAssign }) {
                 </div>
               ))}
             </div>
-            {/* Assign employee */}
             <div style={{ marginBottom: 16 }}>
               <label style={css.label}>Assign to Employee</label>
               <select
@@ -578,8 +662,7 @@ function AdminCalendarView({ bookings, employees, onAssign }) {
               <button
                 onClick={() => {
                   if (window.confirm(`Remove booking for ${selectedB.name}?`)) {
-                    const updated = bookings.filter(b => b.id !== selectedB.id);
-                    onAssign && onAssign(selectedB.id, "DELETE");
+                    onAssign(selectedB.id, "DELETE");
                     setSelectedB(null);
                   }
                 }}
@@ -592,9 +675,37 @@ function AdminCalendarView({ bookings, employees, onAssign }) {
     </div>
   );
 }
+  const t = today();
+  const [viewYear, setViewYear] = useState(t.y);
+  const [viewMonth, setViewMonth] = useState(t.m);
+  const [selectedB, setSelectedB] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
+  const firstDay = getFirstDay(viewYear, viewMonth);
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewYear(y => y-1); setViewMonth(11); }
+    else setViewMonth(m => m-1);
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewYear(y => y+1); setViewMonth(0); }
+    else setViewMonth(m => m+1);
+  }
+
+  function dayBookings(day) {
+    const dk = dateKey(viewYear, viewMonth, day);
+    return bookings.filter(b => b.date === dk).sort((a, b) => a.slot.localeCompare(b.slot));
+  }
+
+  const isToday = (day) => viewYear === t.y && viewMonth === t.m && day === t.d;
+  const isPast = (day) => new Date(viewYear, viewMonth, day) < new Date(t.y, t.m, t.d);
+  const isSun = (day) => new Date(viewYear, viewMonth, day).getDay() === 0;
+
+  const dayBooksForSelected = selectedDate ? dayBookings(selectedDate) : [];
 
 // ── Admin Dashboard ────────────────────────────────────────────────────────────
-function AdminDashboard({ onLogout, bookings, onAssign }) {
+function AdminDashboard({ onLogout, bookings, onAssign, onAdminBook }) {
   const [employees, setEmployees] = useState(loadEmployees());
   const [newName, setNewName] = useState("");
   const [newPin, setNewPin] = useState("");
@@ -741,7 +852,7 @@ function AdminDashboard({ onLogout, bookings, onAssign }) {
             <div style={{ color: COLORS.gray, fontSize: 14, marginBottom: 20 }}>
               Mon–Fri 8am–6pm. Weekends by quote. Sundays closed. Click a booking to view details.
             </div>
-            <AdminCalendarView bookings={bookings} employees={employees} onAssign={onAssign} />
+            <AdminCalendarView bookings={bookings} employees={employees} onAssign={onAssign} onAdminBook={onAdminBook} />
             <div style={{ marginTop: 20, display: "flex", gap: 20, flexWrap: "wrap", fontSize: 13 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: COLORS.green }} /> Free Estimate</div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ width: 10, height: 10, borderRadius: "50%", background: COLORS.blue }} /> Regular Booking</div>
@@ -1756,6 +1867,15 @@ export default function App() {
     });
   }
 
+  function handleAdminBook(b) {
+    setBookings(prev => {
+      const updated = [...prev, b];
+      saveBookings(updated);
+      return updated;
+    });
+    showToast(`✅ ${b.name} scheduled for ${b.date}`);
+  }
+
   // Admin dashboard view
   if (page === "employee" && isAdmin) {
     return (
@@ -1764,7 +1884,7 @@ export default function App() {
           <img src="/logo.png" alt="Criss Maid Cleaning" style={{ height: 40, objectFit: "contain" }} />
           <div style={{ color: COLORS.gold, fontSize: 13, fontWeight: "bold" }}>🔐 Admin</div>
         </header>
-        <AdminDashboard onLogout={handleLogout} bookings={bookings} onAssign={handleAssign} />
+        <AdminDashboard onLogout={handleLogout} bookings={bookings} onAssign={handleAssign} onAdminBook={handleAdminBook} />
         {toast && <div style={css.toast}>{toast}</div>}
       </div>
     );
