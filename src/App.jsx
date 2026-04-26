@@ -79,13 +79,19 @@ function today() {
   return { y: t.getFullYear(), m: t.getMonth(), d: t.getDate() };
 }
 
-// Fake existing bookings for demo
-const DEMO_BOOKINGS = [
-  { id: "b1", date: dateKey(today().y, today().m, today().d + 1), slot: "9:00 AM", name: "Jennifer L.", phone: "555-0101", address: "123 Maple St", homeSize: "2 Bedroom", crew: 2, isFirst: true, extras: [], recurringFreq: "none", estimatedHours: 3, travelMins: 20, status: "confirmed", notes: "Gate code: 4521" },
-  { id: "b2", date: dateKey(today().y, today().m, today().d + 1), slot: "2:00 PM", name: "Carlos M.", phone: "555-0202", address: "456 Oak Ave", homeSize: "3 Bedroom", crew: 3, isFirst: false, extras: ["fridge"], recurringFreq: "biweekly", estimatedHours: 2.5, travelMins: 15, status: "confirmed", notes: "" },
-  { id: "b3", date: dateKey(today().y, today().m, today().d + 3), slot: "10:00 AM", name: "Amanda K.", phone: "555-0303", address: "789 Pine Rd", homeSize: "4 Bedroom", crew: 2, isFirst: true, extras: ["oven","fridge"], recurringFreq: "weekly", estimatedHours: 5, travelMins: 25, status: "confirmed", notes: "Allergic to strong scents" },
-  { id: "b4", date: dateKey(today().y, today().m, today().d + 5), slot: "8:00 AM", name: "Thomas B.", phone: "555-0404", address: "321 Elm Blvd", homeSize: "Studio / 1BR", crew: 2, isFirst: false, extras: [], recurringFreq: "weekly", estimatedHours: 2, travelMins: 10, status: "confirmed", notes: "" },
-];
+// ── Booking persistence ────────────────────────────────────────────────────────
+function loadBookings() {
+  try {
+    const saved = localStorage.getItem("cmc_bookings");
+    return saved ? JSON.parse(saved) : [];
+  } catch { return []; }
+}
+
+function saveBookings(list) {
+  try {
+    localStorage.setItem("cmc_bookings", JSON.stringify(list));
+  } catch (e) { console.error("Failed to save bookings:", e); }
+}
 
 // ── Styles (inline) ────────────────────────────────────────────────────────────
 const css = {
@@ -567,7 +573,19 @@ function AdminCalendarView({ bookings, employees, onAssign }) {
                 {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
               </select>
             </div>
-            <button onClick={() => setSelectedB(null)} style={{ ...css.tealBtn, width: "100%" }}>Close</button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setSelectedB(null)} style={{ ...css.tealBtn, flex: 1 }}>Close</button>
+              <button
+                onClick={() => {
+                  if (window.confirm(`Remove booking for ${selectedB.name}?`)) {
+                    const updated = bookings.filter(b => b.id !== selectedB.id);
+                    onAssign && onAssign(selectedB.id, "DELETE");
+                    setSelectedB(null);
+                  }
+                }}
+                style={{ background: "transparent", color: COLORS.red, border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: "13px 16px", cursor: "pointer", fontSize: 14 }}
+              >🗑</button>
+            </div>
           </div>
         </div>
       )}
@@ -639,7 +657,18 @@ function AdminDashboard({ onLogout, bookings, onAssign }) {
           <h2 style={{ margin: 0, fontFamily: "'Georgia', serif", color: COLORS.navy }}>🔐 Admin Dashboard</h2>
           <div style={{ color: COLORS.gray, fontSize: 14 }}>Criss Maid Cleaning</div>
         </div>
-        <button onClick={onLogout} style={{ ...css.outlineBtn, color: COLORS.red, borderColor: COLORS.red }}>Log Out</button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={() => {
+              if (window.confirm("Clear ALL bookings? This cannot be undone.")) {
+                localStorage.removeItem("cmc_bookings");
+                window.location.reload();
+              }
+            }}
+            style={{ background: "transparent", color: COLORS.gray, border: `1px solid #E5E7EB`, borderRadius: 8, padding: "7px 12px", fontSize: 12, cursor: "pointer" }}
+          >🗑 Clear All</button>
+          <button onClick={onLogout} style={{ ...css.outlineBtn, color: COLORS.red, borderColor: COLORS.red }}>Log Out</button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -1666,10 +1695,15 @@ function AboutPage({ onBook }) {
 // ── Main App ───────────────────────────────────────────────────────────────────
 export default function App() {
   const [page, setPage] = useState("home");
-  const [bookings, setBookings] = useState(DEMO_BOOKINGS);
+  const [bookings, setBookings] = useState(loadBookings);
   const [employee, setEmployee] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Save bookings to localStorage whenever they change
+  useEffect(() => {
+    saveBookings(bookings);
+  }, [bookings]);
 
   useEffect(() => {
     const saved = localStorage.getItem("cmc_employee");
@@ -1679,7 +1713,11 @@ export default function App() {
   }, []);
 
   function handleBook(b) {
-    setBookings(prev => [...prev, b]);
+    setBookings(prev => {
+      const updated = [...prev, b];
+      saveBookings(updated);
+      return updated;
+    });
     showToast("Booking confirmed! ✓");
   }
 
@@ -1709,7 +1747,13 @@ export default function App() {
   }
 
   function handleAssign(bookingId, employeeId) {
-    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, assignedTo: employeeId } : b));
+    setBookings(prev => {
+      const updated = employeeId === "DELETE"
+        ? prev.filter(b => b.id !== bookingId)
+        : prev.map(b => b.id === bookingId ? { ...b, assignedTo: employeeId } : b);
+      saveBookings(updated);
+      return updated;
+    });
   }
 
   // Admin dashboard view
