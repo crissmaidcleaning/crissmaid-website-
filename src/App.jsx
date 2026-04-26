@@ -675,23 +675,6 @@ function AdminCalendarView({ bookings, employees, onAssign, onAdminBook }) {
     </div>
   );
 }
-  const t = today();
-  const [viewYear, setViewYear] = useState(t.y);
-  const [viewMonth, setViewMonth] = useState(t.m);
-  const [selectedB, setSelectedB] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(null);
-
-  const daysInMonth = getDaysInMonth(viewYear, viewMonth);
-  const firstDay = getFirstDay(viewYear, viewMonth);
-
-  function prevMonth() {
-    if (viewMonth === 0) { setViewYear(y => y-1); setViewMonth(11); }
-    else setViewMonth(m => m-1);
-  }
-  function nextMonth() {
-    if (viewMonth === 11) { setViewYear(y => y+1); setViewMonth(0); }
-    else setViewMonth(m => m+1);
-  }
 
 // ── Admin Dashboard ────────────────────────────────────────────────────────────
 function AdminDashboard({ onLogout, bookings, onAssign, onAdminBook }) {
