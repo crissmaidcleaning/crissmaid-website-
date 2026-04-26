@@ -693,17 +693,6 @@ function AdminCalendarView({ bookings, employees, onAssign, onAdminBook }) {
     else setViewMonth(m => m+1);
   }
 
-  function dayBookings(day) {
-    const dk = dateKey(viewYear, viewMonth, day);
-    return bookings.filter(b => b.date === dk).sort((a, b) => a.slot.localeCompare(b.slot));
-  }
-
-  const isToday = (day) => viewYear === t.y && viewMonth === t.m && day === t.d;
-  const isPast = (day) => new Date(viewYear, viewMonth, day) < new Date(t.y, t.m, t.d);
-  const isSun = (day) => new Date(viewYear, viewMonth, day).getDay() === 0;
-
-  const dayBooksForSelected = selectedDate ? dayBookings(selectedDate) : [];
-
 // ── Admin Dashboard ────────────────────────────────────────────────────────────
 function AdminDashboard({ onLogout, bookings, onAssign, onAdminBook }) {
   const [employees, setEmployees] = useState(loadEmployees());
