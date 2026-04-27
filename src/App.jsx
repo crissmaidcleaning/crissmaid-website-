@@ -1081,34 +1081,64 @@ async function sendEmails(booking) {
   }
 }
 
-// ── Address Autocomplete ────────────────────────────────────────────────────────
-function AddressAutocomplete({ value, onChange }) {
+// ── Address Autocomplete with Service Area Validation ──────────────────────────
+function isInServiceArea(address) {
+  if (!address || address.length < 5) return null; // null = not checked yet
+  const upper = address.toUpperCase();
+  const mdPatterns = [
+    /\bMARYLAND\b/, /\b MD\b/, /,\s*MD\b/, /\bMD\s*\d{5}/, /\bMD,/,
+    // Major MD cities/counties
+    /\bROCKVILLE\b/, /\bGAITHERSBURG\b/, /\bSILVER SPRING\b/, /\bBETHESDA\b/,
+    /\bCHEVY CHASE\b/, /\bGREENBELT\b/, /\bCOLLEGE PARK\b/, /\bHYATTSVILLE\b/,
+    /\bLANHAM\b/, /\bBALTIMORE\b/, /\bANNAPOLIS\b/, /\bFREDERICK\b/,
+    /\bGERMANTOWN\b/, /\bCLARKSBURG\b/, /\bDAMASCUS\b/, /\bOLNEY\b/,
+    /\bPOTOMAC\b/, /\bNORTH BETHESDA\b/, /\bWHEATON\b/, /\bKENSINGTON\b/,
+    /\bTAKOMA PARK\b/, /\bSUITLAND\b/, /\bOXON HILL\b/, /\bFORT WASHINGTON\b/,
+    /\bBOWIE\b/, /\bLAUREL\b/, /\bCLINTON\b/, /\bCAMBRIDGE\b/,
+    /\bMONTGOMERY COUNTY\b/, /\bPRINCE GEORGE/, /\bHOWARD COUNTY\b/,
+  ];
+  const dcPatterns = [
+    /\bWASHINGTON,?\s*D\.?C\.?/, /\b DC\b/, /,\s*DC\b/, /\bDC\s*\d{5}/,
+    /\bWASHINGTON DC\b/, /\bWASHINGTON D\.C\b/,
+    // DC neighborhoods
+    /\bCAPITOL HILL\b/, /\bDUPONT CIRCLE\b/, /\bADAMS MORGAN\b/,
+    /\bGEORGETOWN\b/, /\bNE WASHINGTON\b/, /\bNW WASHINGTON\b/,
+    /\bSE WASHINGTON\b/, /\bSW WASHINGTON\b/, /\bANACOSTIA\b/,
+    /\bCOLUMBIA HEIGHTS\b/, /\bPETWORTH\b/, /\bTRINIDAD\b/,
+  ];
+  const inMD = mdPatterns.some(p => p.test(upper));
+  const inDC = dcPatterns.some(p => p.test(upper));
+  return inMD || inDC;
+}
+
+function AddressAutocomplete({ value, onChange, onValidation }) {
   const inputRef = useRef(null);
-  const [loaded, setLoaded] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [inputValue, setInputValue] = useState(value || "");
+  const [serviceAreaStatus, setServiceAreaStatus] = useState(null); // null | true | false
   const autocompleteService = useRef(null);
   const sessionToken = useRef(null);
 
-  // Load Google Places API
-  useEffect(() => {
-    if (window.google && window.google.maps && window.google.maps.places) {
-      setLoaded(true);
+  function checkArea(val) {
+    if (!val || val.length < 8) {
+      setServiceAreaStatus(null);
+      if (onValidation) onValidation(null);
       return;
     }
-    // Use a free approach without API key — browser native autocomplete fallback
-    setLoaded(false);
-  }, []);
+    const valid = isInServiceArea(val);
+    setServiceAreaStatus(valid);
+    if (onValidation) onValidation(valid);
+  }
 
   function handleInput(e) {
     const val = e.target.value;
     setInputValue(val);
     onChange(val);
+    checkArea(val);
 
     if (!val || val.length < 3) { setSuggestions([]); setShowSuggestions(false); return; }
 
-    // Use Google Places if available, otherwise use Nominatim (free, no key needed)
     if (window.google?.maps?.places) {
       if (!autocompleteService.current) {
         autocompleteService.current = new window.google.maps.places.AutocompleteService();
@@ -1126,13 +1156,13 @@ function AddressAutocomplete({ value, onChange }) {
         }
       );
     } else {
-      // Free fallback: Nominatim OpenStreetMap geocoder
       clearTimeout(window._addrTimeout);
       window._addrTimeout = setTimeout(async () => {
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=5&q=${encodeURIComponent(val)}`, {
-            headers: { "Accept-Language": "en" }
-          });
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&limit=5&q=${encodeURIComponent(val)}`,
+            { headers: { "Accept-Language": "en" } }
+          );
           const data = await res.json();
           if (data && data.length > 0) {
             setSuggestions(data.map(d => d.display_name));
@@ -1146,22 +1176,58 @@ function AddressAutocomplete({ value, onChange }) {
   function selectSuggestion(s) {
     setInputValue(s);
     onChange(s);
+    checkArea(s);
     setSuggestions([]);
     setShowSuggestions(false);
   }
 
+  const borderColor = serviceAreaStatus === false ? COLORS.red
+    : serviceAreaStatus === true ? COLORS.green
+    : "#C5D5EC";
+
   return (
     <div style={{ position: "relative" }}>
-      <input
-        ref={inputRef}
-        style={css.input}
-        value={inputValue}
-        onChange={handleInput}
-        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-        onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-        placeholder="Start typing your address..."
-        autoComplete="off"
-      />
+      <div style={{ position: "relative" }}>
+        <input
+          ref={inputRef}
+          style={{ ...css.input, border: `1px solid ${borderColor}`, paddingRight: 36 }}
+          value={inputValue}
+          onChange={handleInput}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          placeholder="Start typing your address..."
+          autoComplete="off"
+        />
+        {/* Status icon inside input */}
+        {serviceAreaStatus === true && (
+          <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: COLORS.green, fontSize: 16 }}>✓</span>
+        )}
+        {serviceAreaStatus === false && (
+          <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: COLORS.red, fontSize: 18, fontWeight: "bold" }}>✱</span>
+        )}
+      </div>
+
+      {/* Out of area warning */}
+      {serviceAreaStatus === false && (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginTop: 8, background: "#FFF5F5", border: `1px solid ${COLORS.red}`, borderRadius: 8, padding: "10px 14px" }}>
+          <span style={{ color: COLORS.red, fontSize: 18, flexShrink: 0 }}>✱</span>
+          <div>
+            <div style={{ color: COLORS.red, fontWeight: "bold", fontSize: 13 }}>Outside Our Service Area</div>
+            <div style={{ color: "#666", fontSize: 12, marginTop: 2, lineHeight: 1.5 }}>
+              We currently serve <strong>Maryland</strong> and <strong>Washington D.C.</strong> only. If you believe this is an error, please call us at (240) 413-4313.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In area confirmation */}
+      {serviceAreaStatus === true && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, color: COLORS.green, fontSize: 12 }}>
+          <span>✓</span> Great — we service this area!
+        </div>
+      )}
+
+      {/* Suggestions dropdown */}
       {showSuggestions && suggestions.length > 0 && (
         <div style={{
           position: "absolute", top: "100%", left: 0, right: 0, zIndex: 999,
@@ -1169,22 +1235,30 @@ function AddressAutocomplete({ value, onChange }) {
           borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
           maxHeight: 220, overflowY: "auto", marginTop: 2,
         }}>
-          {suggestions.map((s, i) => (
-            <div
-              key={i}
-              onMouseDown={() => selectSuggestion(s)}
-              style={{
-                padding: "10px 14px", cursor: "pointer", fontSize: 13,
-                borderBottom: i < suggestions.length - 1 ? "1px solid #F3F4F6" : "none",
-                display: "flex", alignItems: "center", gap: 8,
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = COLORS.lightGray}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-            >
-              <span style={{ color: COLORS.blue, fontSize: 14 }}>📍</span>
-              <span>{s}</span>
-            </div>
-          ))}
+          {suggestions.map((s, i) => {
+            const inArea = isInServiceArea(s);
+            return (
+              <div
+                key={i}
+                onMouseDown={() => selectSuggestion(s)}
+                style={{
+                  padding: "10px 14px", cursor: "pointer", fontSize: 13,
+                  borderBottom: i < suggestions.length - 1 ? "1px solid #F3F4F6" : "none",
+                  display: "flex", alignItems: "center", gap: 8,
+                  background: inArea === false ? "#FFF9F9" : "transparent",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = inArea === false ? "#FFF0F0" : COLORS.lightGray}
+                onMouseLeave={e => e.currentTarget.style.background = inArea === false ? "#FFF9F9" : "transparent"}
+              >
+                <span style={{ color: inArea === false ? COLORS.red : COLORS.blue, fontSize: 14 }}>
+                  {inArea === false ? "✱" : "📍"}
+                </span>
+                <span style={{ flex: 1 }}>{s}</span>
+                {inArea === false && <span style={{ color: COLORS.red, fontSize: 11, whiteSpace: "nowrap" }}>Out of area</span>}
+                {inArea === true && <span style={{ color: COLORS.green, fontSize: 11, whiteSpace: "nowrap" }}>✓ MD/DC</span>}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -1199,8 +1273,7 @@ function BookingForm({ bookings, onBook }) {
     homeSize: "", crew: 2, isFirst: true, recurringFreq: "none",
     extras: [], date: null, slot: null,
   });
-  const [submitted, setSubmitted] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [addressValid, setAddressValid] = useState(null); // null | true | false
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
@@ -1215,7 +1288,7 @@ function BookingForm({ bookings, onBook }) {
   }
 
   function canNext() {
-    if (step === 1) return form.name && form.phone && form.email && form.address;
+    if (step === 1) return form.name && form.phone && form.email && form.address && addressValid !== false;
     if (step === 2) return form.homeSize;
     if (step === 3) return form.date && form.slot;
     return true;
@@ -1321,7 +1394,7 @@ function BookingForm({ bookings, onBook }) {
           </div>
           <div style={css.formGroup}>
             <label style={css.label}>Service Address *</label>
-            <AddressAutocomplete value={form.address} onChange={v => set("address", v)} />
+            <AddressAutocomplete value={form.address} onChange={v => set("address", v)} onValidation={v => setAddressValid(v)} />
           </div>
           <div style={css.formGroup}>
             <label style={css.label}>Special Instructions / Notes</label>
@@ -1499,12 +1572,19 @@ function BookingForm({ bookings, onBook }) {
       )}
 
       {/* Navigation */}
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 28 }}>
-        {step > 1 ? <button onClick={() => setStep(s => s-1)} style={css.outlineBtn}>← Back</button> : <div />}
-        {step < 4
-          ? <button onClick={() => setStep(s => s+1)} disabled={!canNext()} style={{ ...css.tealBtn, opacity: canNext() ? 1 : 0.4 }}>Next →</button>
-          : <button onClick={submit} disabled={sending} style={{ ...css.tealBtn, opacity: sending ? 0.7 : 1 }}>{sending ? "Sending..." : form.isFirst ? "Schedule Free Estimate ✓" : "Confirm Booking ✓"}</button>
-        }
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", marginTop: 28, gap: 8 }}>
+        {step === 1 && addressValid === false && (
+          <div style={{ color: COLORS.red, fontSize: 12, textAlign: "right" }}>
+            ✱ Please enter a Maryland or Washington D.C. address to continue.
+          </div>
+        )}
+        <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+          {step > 1 ? <button onClick={() => setStep(s => s-1)} style={css.outlineBtn}>← Back</button> : <div />}
+          {step < 4
+            ? <button onClick={() => setStep(s => s+1)} disabled={!canNext()} style={{ ...css.tealBtn, opacity: canNext() ? 1 : 0.4 }}>Next →</button>
+            : <button onClick={submit} disabled={sending} style={{ ...css.tealBtn, opacity: sending ? 0.7 : 1 }}>{sending ? "Sending..." : form.isFirst ? "Schedule Free Estimate ✓" : "Confirm Booking ✓"}</button>
+          }
+        </div>
       </div>
     </div>
   );
