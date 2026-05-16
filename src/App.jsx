@@ -545,29 +545,22 @@ function PricingPage() {
 
       <div style={S.card}>
         <div style={S.title}>Recurring Cleaning — Flat Rates</div>
-        <div style={{ background: "#FFF9F0", border: "1px solid #F39C12", borderRadius: 10, padding: 14, marginBottom: 16 }}>
-          <div style={{ fontWeight: "bold", color: "#E67E22", marginBottom: 6 }}>ℹ️ Flat rate does NOT include:</div>
-          <div style={{ fontSize: 13, color: C.navy, lineHeight: 1.8 }}>• Fridge (inside &amp; out) — <strong>+$45</strong> · Oven — <strong>+$45</strong> · Silver cleaning — <strong>Quote required</strong> · 🚫 No laundry</div>
+        <div style={{ background: C.navyDark, borderRadius: 12, padding: "28px 24px", textAlign: "center", color: "#fff" }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>📞</div>
+          <div style={{ fontFamily: "Georgia,serif", fontSize: 20, fontWeight: "bold", marginBottom: 10, color: C.gold }}>Custom Flat Rate</div>
+          <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, lineHeight: 1.8, maxWidth: 480, margin: "0 auto 20px" }}>
+            After your first cleaning, we'll determine a personalized flat rate based on your home size and preferred cleaning frequency. Rates are tailored to you — no one-size-fits-all pricing.
+          </div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 14, flexWrap: "wrap", marginBottom: 16 }}>
+            {["Weekly","Bi-Weekly","Monthly"].map(f => (
+              <span key={f} style={{ background: "rgba(255,255,255,0.12)", color: "#fff", borderRadius: 20, padding: "6px 18px", fontSize: 13, fontWeight: "bold" }}>{f}</span>
+            ))}
+          </div>
+          <div style={{ color: C.blueLight, fontSize: 13 }}>📱 (240) 413-4313 &nbsp;·&nbsp; 📱 (301) 768-1371</div>
         </div>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-            <thead><tr style={{ background: C.navy, color: "#fff" }}>
-              <th style={{ padding: "11px 14px", textAlign: "left" }}>Home Size</th>
-              <th style={{ padding: "11px 14px", textAlign: "center" }}>Weekly</th>
-              <th style={{ padding: "11px 14px", textAlign: "center" }}>Bi-Weekly</th>
-              <th style={{ padding: "11px 14px", textAlign: "center" }}>Monthly</th>
-            </tr></thead>
-            <tbody>
-              {RECURRING_PRICES.map((r, i) => (
-                <tr key={r.label} style={{ background: i % 2 === 0 ? "#fff" : C.light }}>
-                  <td style={{ padding: "10px 14px", fontWeight: "bold" }}>{r.label}</td>
-                  <td style={{ padding: "10px 14px", textAlign: "center", color: C.blue, fontWeight: "bold" }}>${r.weekly}</td>
-                  <td style={{ padding: "10px 14px", textAlign: "center", color: C.blue, fontWeight: "bold" }}>${r.biweekly}</td>
-                  <td style={{ padding: "10px 14px", textAlign: "center", color: C.blue, fontWeight: "bold" }}>${r.monthly}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={{ background: "#FFF9F0", border: "1px solid #F39C12", borderRadius: 10, padding: 14, marginTop: 14 }}>
+          <div style={{ fontWeight: "bold", color: "#E67E22", marginBottom: 6, fontSize: 14 }}>ℹ️ Recurring Rate Does Not Include:</div>
+          <div style={{ fontSize: 13, color: C.navy, lineHeight: 1.8 }}>• Fridge (inside &amp; out) — <strong>+$45</strong> · Oven cleaning — <strong>+$45</strong> · Silver cleaning — <strong>Quote required</strong> · 🚫 No laundry</div>
         </div>
       </div>
 
