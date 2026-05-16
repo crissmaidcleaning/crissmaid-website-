@@ -46,15 +46,16 @@ function dateKey(y, m, d) { return `${y}-${pad(m+1)}-${pad(d)}`; }
 function todayObj() { const t = new Date(); return { y: t.getFullYear(), m: t.getMonth(), d: t.getDate() }; }
 
 // ── Storage helpers ──────────────────────────────────────────────────────────
+function safeGet(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function safeSet(key, val) { try { localStorage.setItem(key, val); } catch {} }
+function safeRemove(key) { try { localStorage.removeItem(key); } catch {} }
+
 function loadEmployees() {
-  try {
-    const s = localStorage.getItem("cmc_employees");
-    return s ? JSON.parse(s) : [{ id: 1, name: "Maria G.", pin: "123456", color: C.blue }];
-  } catch { return []; }
+  try { const s = safeGet("cmc_employees"); return s ? JSON.parse(s) : [{ id: 1, name: "Maria G.", pin: "123456", color: C.blue }]; } catch { return []; }
 }
-function saveEmployees(list) { try { localStorage.setItem("cmc_employees", JSON.stringify(list)); } catch {} }
-function loadBookings() { try { const s = localStorage.getItem("cmc_bookings"); return s ? JSON.parse(s) : []; } catch { return []; } }
-function saveBookings(list) { try { localStorage.setItem("cmc_bookings", JSON.stringify(list)); } catch {} }
+function saveEmployees(list) { safeSet("cmc_employees", JSON.stringify(list)); }
+function loadBookings() { try { const s = safeGet("cmc_bookings"); return s ? JSON.parse(s) : []; } catch { return []; } }
+function saveBookings(list) { safeSet("cmc_bookings", JSON.stringify(list)); }
 
 // ── Service area validation ──────────────────────────────────────────────────
 function checkServiceArea(addr) {
@@ -979,7 +980,7 @@ function AdminDashboard({ onLogout, bookings, onAssign, onAdminBook }) {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
         <div><h2 style={{margin:0,fontFamily:"Georgia,serif",color:C.navy}}>🔐 Admin Dashboard</h2><div style={{color:C.gray,fontSize:13}}>Criss Maid Cleaning</div></div>
         <div style={{display:"flex",gap:8}}>
-          <button onClick={()=>{if(window.confirm("Clear ALL bookings? Cannot be undone.")){localStorage.removeItem("cmc_bookings");window.location.reload();}}} style={{background:"transparent",color:C.gray,border:"1px solid #E5E7EB",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer"}}>🗑 Clear All</button>
+          <button onClick={()=>{if(window.confirm("Clear ALL bookings? Cannot be undone.")){safeRemove("cmc_bookings");window.location.reload();}}} style={{background:"transparent",color:C.gray,border:"1px solid #E5E7EB",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer"}}>🗑 Clear All</button>
           <Btn variant="outline" onClick={onLogout} style={{color:C.red,borderColor:C.red}}>Log Out</Btn>
         </div>
       </div>
@@ -1088,11 +1089,11 @@ function EmployeeLogin({ onLogin, onAdminLogin }) {
   function tryLogin() {
     const emps=loadEmployees();
     const emp=emps.find(e=>e.pin===pin);
-    if (emp) { localStorage.setItem("cmc_employee",JSON.stringify(emp)); onLogin(emp); }
+    if (emp) { safeSet("cmc_employee",JSON.stringify(emp)); onLogin(emp); }
     else { setErr("Incorrect PIN."); setShake(true); setTimeout(()=>{setShake(false);setPin("");setErr("");},1200); }
   }
   function tryAdmin() {
-    if (adminPass===ADMIN_PASSWORD) { localStorage.setItem("cmc_admin","true"); onAdminLogin(); }
+    if (adminPass===ADMIN_PASSWORD) { safeSet("cmc_admin","true"); onAdminLogin(); }
     else { setAdminErr("Incorrect password."); setAdminPass(""); }
   }
 
@@ -1141,8 +1142,6 @@ function EmployeeLogin({ onLogin, onAdminLogin }) {
 }
 
 // ── Error Boundary ────────────────────────────────────────────────────────────
-import React from "react";
-
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
@@ -1176,9 +1175,9 @@ export default function App() {
 
   useEffect(() => {
     try {
-      const e = localStorage.getItem("cmc_employee");
+      const e = safeGet("cmc_employee");
       if (e) setEmployee(JSON.parse(e));
-      if (localStorage.getItem("cmc_admin") === "true") setIsAdmin(true);
+      if (safeGet("cmc_admin") === "true") setIsAdmin(true);
     } catch {}
   }, []);
 
@@ -1201,7 +1200,7 @@ export default function App() {
     showToast(`✅ ${b.name} scheduled for ${b.date}`);
   }
 
-  function logout() { localStorage.removeItem("cmc_employee"); localStorage.removeItem("cmc_admin"); setEmployee(null); setIsAdmin(false); setPage("home"); }
+  function logout() { safeRemove("cmc_employee"); safeRemove("cmc_admin"); setEmployee(null); setIsAdmin(false); setPage("home"); }
 
   const navBtnStyle = (active) => ({
     background: active ? C.blue : "transparent", color: "#fff",
