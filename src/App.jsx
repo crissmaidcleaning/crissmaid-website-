@@ -107,22 +107,21 @@ function getSlotsBlockedByBooking(slot, durationHours=2) {
 }
 
 function isSlotUnavailable(slot, dayBookings, blockedData, dk) {
-  // Admin-blocked specific slots
   const adminSlots = (blockedData?.slots||{})[dk]||[];
   if (adminSlots.includes(slot)) return true;
-  // Hour-blocked ranges
   const hourBlocks = (blockedData?.hourBlocks||{})[dk]||[];
   const slotH = SLOT_HOURS[slot];
   for (const hb of hourBlocks) {
-    if (slotH >= hb.from && slotH < hb.to) return true;
+    const fromH = typeof hb.from === "number" ? hb.from : SLOT_HOURS[hb.from]||0;
+    const toH   = typeof hb.to   === "number" ? hb.to   : SLOT_HOURS[hb.to]||0;
+    if (slotH >= fromH && slotH < toH) return true;
   }
-  // 2-hour buffer from existing bookings
   for (const b of dayBookings) {
     const bH = SLOT_HOURS[b.slot];
     if (!bH) continue;
     const dur = b.durationHours||2;
     if (slotH >= bH && slotH < bH + dur) return true;
-    if (slotH < bH && slotH + 2 > bH) return true; // buffer before
+    if (slotH < bH && slotH + 2 > bH) return true;
   }
   return false;
 }
@@ -371,15 +370,7 @@ function BookingForm({bookings,blockedData,onBook}){
           <Fld label="Email *"><input style={S.input} value={form.email} onChange={e=>upd("email",e.target.value)} type="email" placeholder="jane@email.com"/></Fld>
           <Fld label="Service Address *"><AddrInput value={form.address} onChange={v=>upd("address",v)} onArea={setAreaOk}/></Fld>
           <Fld label="Notes / Special Instructions"><textarea style={{...S.input,height:70,resize:"vertical"}} value={form.notes} onChange={e=>upd("notes",e.target.value)} placeholder="Gate code, pets, allergies, etc."/></Fld>
-          <div style={{marginBottom:16}}>
-            <label style={S.label}>Promo Code (optional)</label>
-            <div style={{display:"flex",gap:10}}>
-              <input style={{...S.input,flex:1,border:`1px solid ${promoOk?C.green:promoErr?C.red:"#C5D5EC"}`}} value={promo} onChange={e=>{setPromo(e.target.value.toUpperCase());setPromoErr("");setPromoOk(false);}} placeholder="e.g. FIRSTCLEAN20"/>
-              <Btn onClick={applyPromo} style={{whiteSpace:"nowrap",padding:"11px 18px"}}>Apply</Btn>
-            </div>
-            {promoOk&&<div style={{color:C.green,fontSize:13,marginTop:6,fontWeight:"bold"}}>✅ 20% off applied!</div>}
-            {promoErr&&<div style={{color:C.red,fontSize:12,marginTop:4}}>{promoErr}</div>}
-          </div>
+
         </div>
       )}
 
@@ -524,6 +515,25 @@ function PricingPage(){
           <div style={{fontSize:13,color:C.navy,lineHeight:1.8}}>• Fridge (inside & out) — <strong>+$45</strong> · Oven — <strong>+$45</strong> · Silver — <strong>Quote</strong> · 🚫 No laundry</div>
         </div>
       </div>
+      <div style={{...S.card,background:C.navy,color:"#fff"}}>
+        <div style={{fontFamily:"Georgia,serif",fontSize:17,color:C.greenLight,marginBottom:8}}>🏢 Commercial & Multi-Unit Services</div>
+        <p style={{color:"#DDD",fontSize:13,marginBottom:16,lineHeight:1.8}}>We also service commercial and multi-unit properties. Pricing is custom quoted based on size, frequency, and scope of work.</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:12,marginBottom:20}}>
+          {[["🏢","Apartment Complexes","Hallways, lobbies & common areas"],["🏛️","Condo Associations","Recurring common area cleaning"],["🏘️","HOAs","Clubhouses & shared facilities"],["💼","Office Buildings","Daily or weekly janitorial"]].map(([icon,t,d])=>(
+            <div key={t} style={{background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"14px 12px",textAlign:"center"}}>
+              <div style={{fontSize:24,marginBottom:6}}>{icon}</div>
+              <div style={{fontWeight:"bold",fontSize:13,marginBottom:4,color:C.gold}}>{t}</div>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.7)",lineHeight:1.5}}>{d}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:"rgba(255,255,255,0.1)",borderRadius:10,padding:"14px 16px",textAlign:"center"}}>
+          <div style={{color:C.gold,fontWeight:"bold",marginBottom:6}}>📞 Call for a Custom Quote</div>
+          <div style={{color:"rgba(255,255,255,0.85)",fontSize:13}}>Every commercial property is different. We'll do a walkthrough and provide a tailored proposal.</div>
+          <div style={{marginTop:10,color:C.blueLight,fontSize:13}}>📱 (240) 413-4313 &nbsp;·&nbsp; 📱 (301) 768-1371</div>
+        </div>
+      </div>
+
       <div style={{...S.card,background:C.navy,color:"#fff"}}>
         <div style={{fontFamily:"Georgia,serif",fontSize:17,color:C.greenLight,marginBottom:8}}>📞 Get Your Free Estimate</div>
         <div style={{display:"flex",gap:16,flexWrap:"wrap",color:C.blueLight}}>
@@ -1271,7 +1281,7 @@ export default function App(){
   const [showPromo,setShowPromo]=useState(false);
   const [leads,setLeads]=useState(loadLeads);
 
-  useEffect(()=>{const seen=safeGet("cmc_promo_seen");if(!seen){const t=setTimeout(()=>setShowPromo(true),5000);return()=>clearTimeout(t);}},[]);
+  // Promo popup disabled
   useEffect(()=>{saveBookings(bookings);},[bookings]);
   useEffect(()=>{saveBlocked(blocked);},[blocked]);
   useEffect(()=>{try{const e=safeGet("cmc_employee");if(e)setEmployee(JSON.parse(e));if(safeGet("cmc_admin")==="true")setIsAdmin(true);}catch{}},[]);
@@ -1361,7 +1371,7 @@ export default function App(){
           </div>
           <div style={S.section}>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:18,marginBottom:20}}>
-              {[["🏠","All Home Sizes","From studios to 5+ bedrooms. Apartment common areas too."],["👥","2 or 3-Person Crews","$75/hr for 2, $130/hr for 3. Crew quoted after free estimate."],["📅","Easy Scheduling","Book online in minutes. First cleaning includes everything."],["⭐","Add-On Services","Fridge & oven ($45 each) for recurring clients. Silver quoted."]].map(([icon,t,d])=>(
+              {[["🏠","All Home Sizes","From studios to 5+ bedrooms. First cleaning includes everything."],["👥","2 or 3-Person Crews","$75/hr for 2, $130/hr for 3. Crew size quoted after free estimate."],["🏢","Commercial Services","Apartment complexes, condos, HOAs & office buildings. Call for quote."],["⭐","Add-On Services","Fridge & oven ($45 each) for recurring clients. Silver cleaning quoted."]].map(([icon,t,d])=>(
                 <div key={t} style={{...S.card,textAlign:"center",marginBottom:0}}>
                   <div style={{fontSize:32,marginBottom:10}}>{icon}</div>
                   <div style={{fontWeight:"bold",fontSize:15,marginBottom:6,fontFamily:"Georgia,serif"}}>{t}</div>
@@ -1395,7 +1405,7 @@ export default function App(){
       {page==="pricing"&&<PricingPage/>}
       {page==="about"&&<AboutPage onBook={()=>setPage("book")}/>}
 
-      {showPromo&&<PromoPopup onClose={()=>{setShowPromo(false);safeSet("cmc_promo_seen","true");}} onCapture={handleLeadCapture}/>}
+      
 
       <footer style={{background:C.navy,color:"#AAA",textAlign:"center",padding:"28px 20px",fontSize:13}}>
         <div style={{color:"#fff",fontFamily:"Georgia,serif",fontSize:17,marginBottom:8}}>Criss Maid Cleaning</div>
