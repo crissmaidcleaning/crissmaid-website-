@@ -1365,7 +1365,7 @@ export default function App(){
       {page==="home"&&(
         <>
           <div style={{background:`linear-gradient(135deg,${C.navyDark} 0%,#1a5bb5 60%,${C.blue} 100%)`,padding:"48px 20px",textAlign:"center"}}>
-            <img src="/logo.png" alt="Criss Maid Cleaning" style={{width:"85%",maxWidth:360,objectFit:"contain",marginBottom:14,mixBlendMode:"screen"}}/>
+            <img src="/logo.png" alt="Criss Maid Cleaning" style={{width:"85%",maxWidth:400,objectFit:"contain",marginBottom:14}}/>
             <p style={{color:"#fff",fontWeight:"bold",fontSize:16,letterSpacing:2,marginBottom:24}}>Professional · Reliable · Spotless</p>
             <button onClick={()=>setPage("book")} style={{background:C.green,color:"#fff",border:"none",borderRadius:8,padding:"15px 36px",fontSize:15,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 20px rgba(75,173,46,0.4)"}}>Book a Cleaning →</button>
           </div>
