@@ -118,6 +118,23 @@ function loadBookings(){try{const s=safeGet("cmc_bookings");return s?JSON.parse(
 function saveBookings(l){safeSet("cmc_bookings",JSON.stringify(l));}
 function loadBlocked(){try{const s=safeGet("cmc_blocked");return s?JSON.parse(s):{days:[],slots:{},closedWeekdays:[],hourBlocks:{}};}catch{return{days:[],slots:{},closedWeekdays:[],hourBlocks:{}};}}
 function saveBlocked(d){safeSet("cmc_blocked",JSON.stringify(d));}
+async function sbGetEmployees() {
+  const data = await sbFetch("/employees?select=*&order=created_at.asc");
+  return data ? data.map(r => ({ ...r.data, id: r.id })) : null;
+}
+async function sbSaveEmployee(emp) {
+  await sbFetch("/employees", { method: "POST",
+    headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({ id: String(emp.id), data: emp, created_at: new Date().toISOString() }) });
+}
+async function sbDeleteEmployee(id) {
+  await sbFetch(`/employees?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
+}
+async function sbUpdateEmployee(emp) {
+  await sbFetch(`/employees?id=eq.${emp.id}`, { method: "PATCH", prefer: "return=minimal",
+    body: JSON.stringify({ data: emp }) });
+}
+
 function loadEmployees(){try{const s=safeGet("cmc_employees");return s?JSON.parse(s):[];}catch{return[];}}
 function saveEmployees(l){safeSet("cmc_employees",JSON.stringify(l));}
 function loadLeads(){try{const s=safeGet("cmc_leads");return s?JSON.parse(s):[];}catch{return[];}}
@@ -1096,16 +1113,45 @@ function AdminDash({onLogout,bookings,blockedData,leads=[],onAssign,onAdminBook,
   const CLR=[C.blue,C.green,"#4A90D9","#E67E22","#9B59B6","#E74C3C"];
   const estimates=bookings.filter(b=>b.isFirst);
 
+  // Load employees from Supabase on mount
+  useEffect(()=>{
+    sbGetEmployees().then(dbEmps=>{
+      if(dbEmps&&dbEmps.length>=0){
+        setEmployees(dbEmps);
+        saveEmployees(dbEmps);
+      }
+    });
+  },[]);
+
   function saveReceipt(r){const u=[r,...receipts];setReceipts(u);saveReceipts(u);}
-  function addEmp(){
+
+  async function addEmp(){
     if(!newName.trim()){setErr("Enter a name.");return;}
     if(newPin.length!==6||!/^\d+$/.test(newPin)){setErr("PIN must be 6 digits.");return;}
     if(employees.find(e=>e.pin===newPin)){setErr("PIN in use.");return;}
-    const u=[...employees,{id:Date.now(),name:newName.trim(),pin:newPin,color:CLR[employees.length%CLR.length]}];
-    setEmployees(u);saveEmployees(u);setNewName("");setNewPin("");setErr("");setOk(`✅ ${newName.trim()} added!`);setTimeout(()=>setOk(""),3000);
+    const newEmp={id:String(Date.now()),name:newName.trim(),pin:newPin,color:CLR[employees.length%CLR.length]};
+    const u=[...employees,newEmp];
+    setEmployees(u);saveEmployees(u);
+    await sbSaveEmployee(newEmp);
+    setNewName("");setNewPin("");setErr("");setOk(`✅ ${newName.trim()} added!`);setTimeout(()=>setOk(""),3000);
   }
-  function removeEmp(id){if(!window.confirm("Remove?"))return;const u=employees.filter(e=>e.id!==id);setEmployees(u);saveEmployees(u);}
-  function changePin(id){const p=window.prompt("New 6-digit PIN:");if(!p||p.length!==6||!/^\d+$/.test(p)){if(p)alert("Must be 6 digits.");return;}if(employees.find(e=>e.pin===p&&e.id!==id)){alert("PIN in use.");return;}const u=employees.map(e=>e.id===id?{...e,pin:p}:e);setEmployees(u);saveEmployees(u);}
+
+  async function removeEmp(id){
+    if(!window.confirm("Remove?"))return;
+    const u=employees.filter(e=>e.id!==id);
+    setEmployees(u);saveEmployees(u);
+    await sbDeleteEmployee(id);
+  }
+
+  async function changePin(id){
+    const p=window.prompt("New 6-digit PIN:");
+    if(!p||p.length!==6||!/^\d+$/.test(p)){if(p)alert("Must be 6 digits.");return;}
+    if(employees.find(e=>e.pin===p&&e.id!==id)){alert("PIN in use.");return;}
+    const u=employees.map(e=>e.id===id?{...e,pin:p}:e);
+    setEmployees(u);saveEmployees(u);
+    const updated=u.find(e=>e.id===id);
+    if(updated) await sbUpdateEmployee(updated);
+  }
   const tabS=(a)=>({flex:1,textAlign:"center",padding:"9px 4px",cursor:"pointer",background:"none",fontFamily:"inherit",fontSize:12,border:"none",borderBottom:`3px solid ${a?C.blue:"transparent"}`,color:a?C.blue:C.gray,fontWeight:a?"bold":"normal",whiteSpace:"nowrap"});
 
   return(
@@ -1277,7 +1323,14 @@ function EmpLogin({onLogin,onAdmin}){
   function press(k){if(pin.length<6)setPin(p=>p+k);}
   function back(){setPin(p=>p.slice(0,-1));setErr("");}
   function clr(){setPin("");setErr("");}
-  function tryLogin(){const emps=loadEmployees();const emp=emps.find(e=>e.pin===pin);if(emp){safeSet("cmc_employee",JSON.stringify(emp));onLogin(emp);}else{setErr("Incorrect PIN.");setShake(true);setTimeout(()=>{setShake(false);setPin("");setErr("");},1200);}}
+  async function tryLogin(){
+    // First try Supabase, fall back to localStorage
+    let emps = await sbGetEmployees();
+    if (!emps || emps.length === 0) emps = loadEmployees();
+    const emp = emps.find(e=>e.pin===pin);
+    if(emp){safeSet("cmc_employee",JSON.stringify(emp));onLogin(emp);}
+    else{setErr("Incorrect PIN.");setShake(true);setTimeout(()=>{setShake(false);setPin("");setErr("");},1200);}
+  }
   function tryAdmin(){if(ap===ADMIN_PASSWORD){safeSet("cmc_admin","true");onAdmin();}else{setAe("Incorrect password.");setAp("");}}
   if(adminMode)return(
     <div style={{maxWidth:360,margin:"60px auto",padding:"0 20px"}}>
@@ -1349,6 +1402,11 @@ export default function App(){
         if (dbBlocked) {
           setBlocked(dbBlocked);
           saveBlocked(dbBlocked);
+        }
+        // Load employees
+        const dbEmps = await sbGetEmployees();
+        if (dbEmps && dbEmps.length >= 0) {
+          saveEmployees(dbEmps); // sync to localStorage for offline use
         }
         setDbReady(true);
       } catch(e) {
