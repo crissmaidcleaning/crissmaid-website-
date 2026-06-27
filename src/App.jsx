@@ -1,5 +1,57 @@
 import React, { useState, useEffect, useRef } from "react";
 
+// ── Supabase ──────────────────────────────────────────────────────────────────
+const SB_URL = "https://ziltitzwqbyitxwcqgke.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InppbHRpdHp3cWJ5aXR4d2NxZ2tlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI1MTQ3MDUsImV4cCI6MjA5ODA5MDcwNX0.Yy1KH1zFt5l6nr1oy5cyUYYzo8ZRlOI1ThhnlN3yFjI";
+
+async function sbFetch(path, options={}) {
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1${path}`, {
+      ...options,
+      headers: {
+        "apikey": SB_KEY,
+        "Authorization": `Bearer ${SB_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": options.prefer || "return=representation",
+        ...options.headers,
+      },
+    });
+    if (!res.ok) { const e = await res.text(); console.error("Supabase error:", e); return null; }
+    const text = await res.text();
+    return text ? JSON.parse(text) : [];
+  } catch(e) { console.error("Supabase fetch error:", e); return null; }
+}
+
+async function sbGetBookings() {
+  const data = await sbFetch("/bookings?select=*&order=created_at.desc");
+  return data ? data.map(r => ({ ...r.data, id: r.id, _created: r.created_at })) : null;
+}
+
+async function sbSaveBooking(b) {
+  await sbFetch("/bookings", { method: "POST", prefer: "return=minimal",
+    body: JSON.stringify({ id: b.id, data: b, created_at: b.createdAt || new Date().toISOString() }) });
+}
+
+async function sbUpdateBooking(b) {
+  await sbFetch(`/bookings?id=eq.${b.id}`, { method: "PATCH", prefer: "return=minimal",
+    body: JSON.stringify({ data: b }) });
+}
+
+async function sbDeleteBooking(id) {
+  await sbFetch(`/bookings?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
+}
+
+async function sbGetSettings(key) {
+  const data = await sbFetch(`/settings?key=eq.${key}&select=value`);
+  return data && data.length > 0 ? data[0].value : null;
+}
+
+async function sbSaveSettings(key, value) {
+  await sbFetch("/settings", { method: "POST",
+    headers: { "Prefer": "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({ key, value }) });
+}
+
 // ── Config ────────────────────────────────────────────────────────────────────
 const ADMIN_PASSWORD = "CrissMaid2024!";
 const PROMO_CODE = "FIRSTCLEAN20";
@@ -1280,6 +1332,32 @@ export default function App(){
   const [toast,setToast]=useState(null);
   const [showPromo,setShowPromo]=useState(false);
   const [leads,setLeads]=useState(loadLeads);
+  const [dbReady,setDbReady]=useState(false);
+
+  // Load from Supabase on startup
+  useEffect(()=>{
+    async function loadFromDB() {
+      try {
+        // Load bookings
+        const dbBookings = await sbGetBookings();
+        if (dbBookings && dbBookings.length >= 0) {
+          setBookings(dbBookings);
+          saveBookings(dbBookings);
+        }
+        // Load blocked/settings
+        const dbBlocked = await sbGetSettings("blocked");
+        if (dbBlocked) {
+          setBlocked(dbBlocked);
+          saveBlocked(dbBlocked);
+        }
+        setDbReady(true);
+      } catch(e) {
+        console.error("DB load error:", e);
+        setDbReady(true); // fall back to localStorage
+      }
+    }
+    loadFromDB();
+  },[]);
 
   // Promo popup disabled
   useEffect(()=>{saveBookings(bookings);},[bookings]);
@@ -1287,33 +1365,42 @@ export default function App(){
   useEffect(()=>{try{const e=safeGet("cmc_employee");if(e)setEmployee(JSON.parse(e));if(safeGet("cmc_admin")==="true")setIsAdmin(true);}catch{}},[]);
 
   function toast2(msg){setToast(msg);setTimeout(()=>setToast(null),3000);}
-  function handleBook(b){setBookings(prev=>{const u=[...prev,b];saveBookings(u);return u;});toast2("Booking confirmed! ✓");}
   function handleLeadCapture(lead){const u=[lead,...leads];setLeads(u);saveLeads(u);}
-  function handleAssign(id,empId){
-    setBookings(prev=>{const u=empId==="DELETE"?prev.filter(b=>b.id!==id):prev.map(b=>b.id===id?{...b,assignedTo:empId}:b);saveBookings(u);return u;});
-  }
-  function handleAdminBook(b){setBookings(prev=>{const u=[...prev,b];saveBookings(u);return u;});toast2(`✅ ${b.name} scheduled`);}
 
-  // Blocking handlers
-  function handleBlockDay(dk){setBlocked(prev=>{const u={...prev,days:[...(prev.days||[]).filter(d=>d!==dk),dk]};saveBlocked(u);return u;});toast2("Day blocked");}
-  function handleUnblockDay(dk){setBlocked(prev=>{const u={...prev,days:(prev.days||[]).filter(d=>d!==dk)};saveBlocked(u);return u;});toast2("Day unblocked");}
-  function handleBlockSlot(dk,slot){setBlocked(prev=>{const ex=(prev.slots||{})[dk]||[];const u={...prev,slots:{...prev.slots,[dk]:[...ex.filter(s=>s!==slot),slot]}};saveBlocked(u);return u;});toast2("Slot blocked");}
-  function handleUnblockSlot(dk,slot){setBlocked(prev=>{const u={...prev,slots:{...prev.slots,[dk]:((prev.slots||{})[dk]||[]).filter(s=>s!==slot)}};saveBlocked(u);return u;});toast2("Slot unblocked");}
-  function handleBlockHours(dk,fromH,toH){
-    setBlocked(prev=>{const ex=(prev.hourBlocks||{})[dk]||[];const u={...prev,hourBlocks:{...prev.hourBlocks,[dk]:[...ex,{from:fromH,to:toH}]}};saveBlocked(u);return u;});
-    toast2(`Hours ${fromH}:00–${toH}:00 blocked`);
+  async function handleBook(b){
+    setBookings(prev=>{const u=[...prev,b];saveBookings(u);return u;});
+    await sbSaveBooking(b);
+    toast2("Booking confirmed! ✓");
   }
-  function handleUnblockHours(dk,idx){
-    setBlocked(prev=>{const ex=(prev.hourBlocks||{})[dk]||[];const u={...prev,hourBlocks:{...prev.hourBlocks,[dk]:ex.filter((_,i)=>i!==idx)}};saveBlocked(u);return u;});
-    toast2("Hour block removed");
-  }
-  function handleToggleWeekday(dow){
-    setBlocked(prev=>{
-      const closed=prev.closedWeekdays||[];
-      const u={...prev,closedWeekdays:closed.includes(dow)?closed.filter(d=>d!==dow):[...closed,dow]};
-      saveBlocked(u);return u;
+
+  async function handleAssign(id,empId){
+    setBookings(prev=>{
+      const u=empId==="DELETE"?prev.filter(b=>b.id!==id):prev.map(b=>b.id===id?{...b,assignedTo:empId}:b);
+      saveBookings(u);
+      if(empId==="DELETE") sbDeleteBooking(id);
+      else { const updated=u.find(b=>b.id===id); if(updated) sbUpdateBooking(updated); }
+      return u;
     });
   }
+
+  async function handleAdminBook(b){
+    setBookings(prev=>{const u=[...prev,b];saveBookings(u);return u;});
+    await sbSaveBooking(b);
+    toast2(`✅ ${b.name} scheduled`);
+  }
+
+  async function saveBlockedToDB(newBlocked){
+    saveBlocked(newBlocked);
+    await sbSaveSettings("blocked", newBlocked);
+  }
+
+  function handleBlockDay(dk){setBlocked(prev=>{const u={...prev,days:[...(prev.days||[]).filter(d=>d!==dk),dk]};saveBlockedToDB(u);return u;});toast2("Day blocked");}
+  function handleUnblockDay(dk){setBlocked(prev=>{const u={...prev,days:(prev.days||[]).filter(d=>d!==dk)};saveBlockedToDB(u);return u;});toast2("Day unblocked");}
+  function handleBlockSlot(dk,slot){setBlocked(prev=>{const ex=(prev.slots||{})[dk]||[];const u={...prev,slots:{...prev.slots,[dk]:[...ex.filter(s=>s!==slot),slot]}};saveBlockedToDB(u);return u;});toast2("Slot blocked");}
+  function handleUnblockSlot(dk,slot){setBlocked(prev=>{const u={...prev,slots:{...prev.slots,[dk]:((prev.slots||{})[dk]||[]).filter(s=>s!==slot)}};saveBlockedToDB(u);return u;});toast2("Slot unblocked");}
+  function handleBlockHours(dk,fromH,toH){setBlocked(prev=>{const ex=(prev.hourBlocks||{})[dk]||[];const u={...prev,hourBlocks:{...prev.hourBlocks,[dk]:[...ex,{from:fromH,to:toH}]}};saveBlockedToDB(u);return u;});toast2(`Hours blocked`);}
+  function handleUnblockHours(dk,idx){setBlocked(prev=>{const ex=(prev.hourBlocks||{})[dk]||[];const u={...prev,hourBlocks:{...prev.hourBlocks,[dk]:ex.filter((_,i)=>i!==idx)}};saveBlockedToDB(u);return u;});toast2("Hour block removed");}
+  function handleToggleWeekday(dow){setBlocked(prev=>{const closed=prev.closedWeekdays||[];const u={...prev,closedWeekdays:closed.includes(dow)?closed.filter(d=>d!==dow):[...closed,dow]};saveBlockedToDB(u);return u;});}
 
   function logout(){safeRemove("cmc_employee");safeRemove("cmc_admin");setEmployee(null);setIsAdmin(false);setPage("home");}
   const navBtn=(active)=>({background:active?C.blue:"transparent",color:"#fff",border:`1px solid ${active?C.blue:"rgba(255,255,255,0.4)"}`,borderRadius:6,padding:"7px 14px",cursor:"pointer",fontSize:13,fontFamily:"inherit",whiteSpace:"nowrap"});
